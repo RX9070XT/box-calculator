@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>CBBcalc — Конструктор короба</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  @font-face {
+    font-family: 'TT Hoves';
+    src: url('TTHoves-Regular.woff2') format('woff2'),
+         url('TTHoves-Regular.woff') format('woff'),
+         url('TTHoves-Regular.ttf') format('truetype');
+    font-weight: normal; font-style: normal; font-display: swap;
+  }
+  :root {
+  --field-w: 120px; --label-w: 70px; --gap: 30px;
+  --header-h: 85px;        /* шапка +30% */
+  --left-w: 150px;         /* левая полоса -15% */
+  --logo-scale: 2.5;       /* увеличение логотипа */
+  --logo-x: 0px;           /* сдвиг логотипа по горизонтали */
+  --logo-y: 0px;           /* сдвиг логотипа по вертикали */
+  --preview-offset-x: 65px;
+  --preview-offset-y: 50px;
+  --img-offset-x: -150px;
+  --img-offset-y: -65px;
+  --img-width: 500px;
+  --preview-w: 1350px;       /* ширина поля чертежа */
+  --preview-shift-x: 0px;    /* сдвиг поля чертежа вправо (на layout.png) */
+}
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'TT Hoves', sans-serif;
+    background: #6E798A;
+    zoom: 1.10;
+    -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    min-height: 100vh;
+  }
+  
+  /* ===== ШАПКА ===== */
+  .site-header {
+    position: fixed; top: 0; left: 0; right: 0; height: var(--header-h);
+    background: #232B38; z-index: 1000;
+    display: flex; align-items: center;
+    padding: 0 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+  }
+  .site-header img.logo-img {
+  height: calc(var(--header-h) * 0.5 * var(--logo-scale));
+  width: auto; display: block;
+  transform: translate(var(--logo-x), var(--logo-y));
+  transform-origin: left center;
+}
+  
+  /* ===== ОБЩИЙ КАРКАС ФОНА ===== */
+  .page {
+    display: flex;
+    min-height: 100vh;
+    padding-top: var(--header-h);
+    width: 100%;
+    overflow-x: hidden;
+  }
+  .left-bg { width: var(--left-w); flex: 0 0 var(--left-w); background: #45484D; }
+  .center-bg {
+    flex: 1 1 auto;
+    background: #fff;
+    min-width: 0;
+    overflow: visible;
+    position: relative;
+    z-index: 10;
+  }
+  .right-bg {
+    flex: 0 0 450px;
+    width: 240px;
+    align-self: stretch;          /* тянется на всю высоту страницы */
+    position: relative;
+    background: #6E798A;          /* серый фон правой полосы */
+    z-index: 2;
+  }
+  .right-bg .box-shape {
+    position: absolute;
+    top: 0;
+    right: 0;                     /* прижата к правому краю */
+    height: 100%;                 /* по высоте всей правой полосы */
+    width: auto;                  /* ширина пропорционально */
+    display: block;
+    object-fit: cover;            /* картинка заполняет, не искажаясь */
+    object-position: top right;
+  }
+  
+  /* ===== КОНТЕНТ ===== */
+  .container {
+    background: transparent;
+    padding: 30px 30px 30px 30px;
+    position: relative;
+    color: #000;
+  }
+  .columns {
+    padding-top: 15px;
+  }
+  h2 { margin-top: 0; color: #333; font-size: 26px; font-weight: normal; }
+  
+  .input-group { margin-bottom: 6px; display: flex; gap: var(--gap); align-items: center; }
+  label { width: var(--label-w); font-size: 18px; }
+  input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; width: var(--field-w); box-sizing: border-box; height: 38px; font-size: 16px; font-weight: normal; font-family: 'TT Hoves', sans-serif; }
+  input[type=number] { -moz-appearance: textfield; }
+  input[type=number]::-webkit-outer-spin-button,
+  input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  
+  button { background: #703D30; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; font-size: 16px; width: 200px; white-space: nowrap; }
+  button:hover { filter: brightness(0.9); }
+  
+  .btn-row { display: flex; gap: 12px; margin-top: 10px; }
+  .btn-col { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .btn-col button { width: 220px; white-space: nowrap; }
+  
+    /* Главная раскладка */
+.container { display: flex; flex-direction: column; gap: 50px; }
+
+/* Верхний ряд: конструктор слева + чертёж справа */
+.top-row { display: flex; flex-wrap: nowrap; gap: 1px; align-items: flex-start; width: 100%; }
+.columns { display: flex; flex-direction: column; gap: 30px; flex: 0 0 290px; width: 300px; }
+.col { width: 100%; }
+.preview-area { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; overflow: visible; }
+
+/* Нижний ряд: калькулятор + поддон, друг рядом с другом */
+.bottom-row { display: flex; flex-wrap: wrap; gap: 60px; align-items: flex-start; width: 100%; }
+.bottom-row .col { width: auto; }
+  .calc-row { display: flex; gap: 20px; align-items: flex-start; flex-wrap: nowrap; }
+  .calc-form { width: calc(var(--label-w) + var(--gap) + var(--field-w)); }
+  .arrow { font-size: 40px; color: #555; align-self: flex-start; margin-top: 18px; }
+  .result-group { margin-bottom: 6px; display: flex; gap: var(--gap); align-items: center; }
+  .result-group label { width: 70px; font-size: 18px; }
+  /* В укладке на поддон подписи длиннее — даём им больше места и сдвигаем поля вправо */
+  .pallet-results .result-group label { width: 120px; }
+    /* Неактивные поля и кнопки */
+    input:disabled, select:disabled {
+    background: #f0f0f0; color: #aaa; cursor: not-allowed;
+  }
+  button:disabled {
+    background: #b9a9a4; color: #f0f0f0; cursor: not-allowed; filter: none;
+  }
+  button:disabled:hover { filter: none; }
+  
+  #btnCalc { width: 220px; white-space: nowrap; }
+  
+  #preview {
+    margin: 20px 0 0 0;
+    border: 1px solid #ccc; background: #fff; padding: 10px;
+    overflow: hidden;
+    width: var(--preview-w); max-width: none;
+    height: 800px; min-height: 800px;
+    box-sizing: border-box;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 15px;
+    position: relative;
+    z-index: 500;                              /* поверх правой фигуры (z-index:2) */
+    transform: translateX(var(--preview-shift-x));
+    border-radius: 8px;
+  }
+  #preview svg.drawing {
+    max-width: 100%; height: auto; display: block;
+    transform: translate(var(--preview-offset-x), var(--preview-offset-y));
+  }
+  .preview-bottom-img {
+    transform: translate(var(--img-offset-x), var(--img-offset-y));
+    width: var(--img-width); height: auto; display: block;
+    background: #fff; border-radius: 4px;
+  }
+  
+  .version { margin-top: 30px; color: #999; font-size: 10px; }
+ 
+  option:disabled { color: #aaa; }
+  
+  /* ===== КАСТОМНЫЕ СПИСКИ ===== */
+  .cs-wrap { position: relative; width: var(--field-w); z-index: 1; }
+  .cs-wrap.open { z-index: 9999; }
+  .cs-wrap select.cs-native {
+  position: absolute !important; opacity: 0 !important; pointer-events: none !important;
+  width: 0 !important; height: 0 !important; margin: 0 !important; padding: 0 !important;
+  border: 0 !important; overflow: hidden; clip: rect(0 0 0 0);
+}
+  .cs-display {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 8px; height: 38px; box-sizing: border-box;
+    border: 1px solid #ccc; border-radius: 4px;
+    font-size: 16px; cursor: pointer; user-select: none;
+    background: #fff; transition: border-color 0.15s, background 0.2s;
+  }
+  .cs-display:hover { border-color: #999; }
+  .cs-wrap.open .cs-display { border-color: #777; }
+  .cs-arrow { margin-left: 8px; font-size: 10px; transition: transform 0.15s; opacity: 0.7; }
+  .cs-wrap.open .cs-arrow { transform: rotate(180deg); }
+  .cs-list {
+    position: absolute; left: 0; top: calc(100% + 4px); z-index: 9999;
+    width: 100%; box-sizing: border-box; max-height: 240px; overflow-y: auto;
+    border: 1px solid #ccc; border-radius: 8px; padding: 4px;
+    background: rgba(255,255,255,0.55);
+    -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18); display: none;
+  }
+  .cs-wrap.cs-disabled .cs-display {
+    background: #f0f0f0; color: #aaa; cursor: not-allowed; pointer-events: none;
+  }
+  .cs-wrap.open .cs-list { display: block; }
+  .cs-option { padding: 7px 10px; border-radius: 5px; font-size: 16px; cursor: pointer; transition: background 0.12s; }
+  .cs-option:hover { background: rgba(0,0,0,0.08); }
+  .cs-option.selected { background: rgba(112,61,48,0.18); }
+  .cs-option.disabled { color: #aaa; cursor: not-allowed; }
+  .cs-option.disabled:hover { background: transparent; }
+  </style>
+</head>
+<body>
+
+  <!-- ШАПКА -->
+  <header class="site-header">
+    <img src="logo.png" alt="SABOS" class="logo-img">
+  </header>
+  
+  <!-- КАРКАС ФОНА -->
+  <div class="page">
+    <div class="left-bg" style="flex:0 0 150px; width:150px;"></div>
+  
+    <div class="center-bg">
+      <div class="container">
+
+        <!-- ВЕРХНИЙ РЯД: конструктор + чертёж -->
+        <div class="top-row">
+
+          <div class="columns">
+
+  <!-- ===== КОЛОНКА 1: КОНСТРУКТОР КОРОБА ===== -->
+  <div class="col">
+    <h2>Конструктор короба</h2>
+    <div class="input-group"><label>FEFCO:</label>
+      <select id="bcConstruction"><option value="0201">0201</option></select>
+    </div>
+        <div class="input-group"><label>Длина:</label><input type="number" id="bcL" placeholder="мм"></div>
+    <div class="input-group"><label>Ширина:</label><input type="number" id="bcW" placeholder="мм"></div>
+    <div class="input-group"><label>Высота:</label><input type="number" id="bcH" placeholder="мм"></div>
+    <div class="input-group"><label>Профиль:</label>
+      <select id="bcProfile">
+        <option value="E">E</option>
+        <option value="B" selected>B</option>
+        <option value="C">C</option>
+        <option value="BC">BC</option>
+        <option value="EB" disabled>EB (скоро)</option>
+      </select>
+    </div>
+    <div class="btn-col">
+      <button id="btnPreview">Предпросмотр</button>
+      <button id="btnDownload">Скачать вектор</button>
+      <button id="btnPDF">Скачать PDF (A4)</button>
+    </div>
+  </div>
+
+          </div><!-- /.columns -->
+
+          <div class="preview-area">
+            <div id="preview"></div>
+            <div class="version">version: indev 26.06.02</div>
+          </div>
+
+        </div><!-- /.top-row -->
+
+        <!-- НИЖНИЙ РЯД: калькулятор + поддон -->
+        <div class="bottom-row">
+
+  <!-- ===== КОЛОНКА 2: КАЛЬКУЛЯТОР РАЗВЕРТКИ ===== -->
+  <div class="col">
+    <h2>Калькулятор развертки</h2>
+    <div class="calc-row">
+      <div class="calc-form">
+        <div class="input-group"><label>FEFCO:</label>
+          <select id="calcConstruction"></select>
+        </div>
+        <div class="input-group"><label>Длина:</label><input type="number" id="calcL" placeholder="мм"></div>
+        <div class="input-group"><label>Ширина:</label><input type="number" id="calcW" placeholder="мм"></div>
+        <div class="input-group"><label>Высота:</label><input type="number" id="calcH" placeholder="мм"></div>
+        <div class="input-group"><label>Профиль:</label>
+          <select id="calcProfile">
+            <option value="E">E</option>
+            <option value="B" selected>B</option>
+            <option value="C">C</option>
+            <option value="BC">BC</option>
+            <option value="EB" disabled>EB (скоро)</option>
+          </select>
+        </div>
+        <div class="btn-col">
+          <button id="btnCalc">Рассчитать</button>
+          <button id="btnPallet" disabled>Уложить на поддон</button>
+        </div>
+      </div>
+      <div class="arrow">&#8594;</div>
+      <div>
+        <div class="result-group"><label>Длина</label><input type="text" id="resL" readonly></div>
+        <div class="result-group"><label>Ширина</label><input type="text" id="resW" readonly></div>
+      </div>
+    </div>
+  </div>
+
+        <!-- ===== КОЛОНКА 3: УКЛАДКА НА ПОДДОН ===== -->
+        <div class="col pallet-col">
+          <h2>Укладка на поддон</h2>
+      <div class="calc-row">
+        <div class="calc-form">
+          <div class="input-group"><label>Поддон:</label>
+            <select id="palType" disabled>
+              <option value="800x1200" selected>800 x 1200</option>
+              <option value="1000x1200">1000 x 1200</option>
+            </select>
+          </div>
+          <div class="input-group"><label>Кратность:</label><input type="number" id="palPerStack" placeholder="шт" disabled></div>
+        </div>
+        <div class="arrow">&#8594;</div>
+        <div class="pallet-results">
+          <div class="result-group"><label>Раскладка:</label><input type="text" id="palLayout" readonly></div>
+          <div class="result-group"><label>Длина:</label><input type="text" id="palOutL" readonly></div>
+          <div class="result-group"><label>Ширина:</label><input type="text" id="palOutW" readonly></div>
+          <div class="result-group"><label>Высота:</label><input type="text" id="palOutH" readonly></div>
+          <div class="result-group"><label>Всего шт:</label><input type="text" id="palTotal" readonly></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /.bottom-row -->
+
+</div><!-- /.container -->
+</div><!-- /.center-bg -->
+
+      <!-- ПРАВАЯ ЗОНА С ФИГУРНОЙ ВСТАВКОЙ -->
+      <div class="right-bg">
+        <img src="layout.png" alt="" class="box-shape">
+      </div>
+
+</div><!-- /.page -->
+
+<script>
+(function () {
+  var SLOT_W = 8;
+  var GLUE_ANGLE_Y = 80;
+  var PT = 0.3528;
+  var CUT_SW = 2 * PT;
+  var DIM_SW = 2 * PT;
+  // Множитель толщины линий специально для PDF (1 = как на экране)
+  var PDF_LINE_BOOST = 1.5;
+  var ICON_SCALE    = 0.75; // размер значка (доля от меньшей стороны: панель/флап)
+  var ICON_PAD_X    = 0.015; // отступ от ПРАВОГО края панели (в долях размера значка)
+  var ICON_PAD_Y    = 0.15; // доп. смещение по вертикали (в долях; центрируется автоматически)
+
+  var ICON_MOON = "\uD83C\uDF18";
+  var ICON_SUN  = "\u2600\uFE0F";
+
+  function roundFlap(x) { return Math.floor(x); }
+
+  var PROFILES = {
+    'B':  { glue: 30, wallH: function (l,w,h){return h+3;}, flapH: function (l,w,h){return roundFlap((w+4)/2);}, panels: function (l,w,h){return [w+2,l+3,w+3,l+2];} },
+    'E':  { glue: 30, wallH: function (l,w,h){return h+2;}, flapH: function (l,w,h){return roundFlap((w+2)/2);}, panels: function (l,w,h){return [w+1,l+2,w+2,l+1];} },
+    'C':  { glue: 35, wallH: function (l,w,h){return h+4;}, flapH: function (l,w,h){return roundFlap((w+5)/2);}, panels: function (l,w,h){return [w+2,l+4,w+4,l+2];} },
+    'BC': { glue: 45, wallH: function (l,w,h){return h+9;}, flapH: function (l,w,h){return roundFlap((w+12)/2);}, panels: function (l,w,h){return [w+4,l+6,w+6,l+4];} },
+    'EB': null
+  };
+
+  function calc(l, w, h, profileKey) {
+    var P = PROFILES[profileKey] || PROFILES['B'];
+    var GLUE = P.glue;
+    var flapH = P.flapH(l, w, h);
+    var wallH = P.wallH(l, w, h);
+    var totalH = flapH * 2 + wallH;
+    var panels = P.panels(l, w, h);
+    var bodyW = panels.reduce(function (a, b) { return a + b; }, 0);
+    var totalW = GLUE + bodyW;
+    var slantRise = GLUE / Math.tan(GLUE_ANGLE_Y * Math.PI / 180);
+    return { GLUE: GLUE, flapH: flapH, wallH: wallH, totalH: totalH, panels: panels, totalW: totalW, slantRise: slantRise };
+  }
+
+  function L(x1, y1, x2, y2, cls) {
+    return '<line class="' + cls + '" x1="' + x1.toFixed(3) + '" y1="' + y1.toFixed(3) + '" x2="' + x2.toFixed(3) + '" y2="' + y2.toFixed(3) + '" />';
+  }
+
+    // Значок направления гофры. Исходный viewBox 0 0 3000 3000.
+  // x,y — левый верхний угол; size — итоговый размер стороны (в мм чертежа).
+  function corrugationIcon(x, y, size) {
+    var s = size / 3000;
+    var sw = 40.28; // толщина линий из исходника
+    var inner =
+      '<line x1="890.09" y1="2409.61" x2="890.09" y2="780.7"/>' +
+      '<path d="M890.09 780.7c451.44,534.5 948.55,1031.61 1483.06,1483.06 -157.34,-477.5 -226.55,-980.84 -203.92,-1483.07 -365.4,327.3 -913.75,327.31 -1279.15,0.02"/>' +
+      '<path d="M892.98 2409.61c23.55,-7.29 63.2,-11.66 105.78,-11.66 42.57,0 82.21,4.37 105.76,11.66 0.19,12.04 47.16,21.69 105.77,21.73 58.61,-0.04 105.58,-9.69 105.77,-21.73 23.55,-7.29 63.19,-11.66 105.77,-11.66 42.58,0 82.23,4.37 105.78,11.66 0.19,12.04 47.16,21.69 105.77,21.72 58.6,-0.03 105.57,-9.68 105.75,-21.72 23.56,-7.29 63.2,-11.66 105.78,-11.66 42.58,0 82.23,4.37 105.78,11.66 0.18,12.04 47.16,21.69 105.76,21.72 58.6,-0.03 105.58,-9.68 105.76,-21.72 23.55,-7.28 63.2,-11.65 105.76,-11.66 42.58,0.01 82.23,4.38 105.77,11.66"/>' +
+      '<line x1="1101.96" y1="2408.84" x2="1101.95" y2="1025.84"/>' +
+      '<line x1="1313.82" y1="2414.03" x2="1313.82" y2="1260.16"/>' +
+      '<line x1="1525.7" y1="2409.03" x2="1525.7" y2="1484.45"/>' +
+      '<line x1="1737.57" y1="2413.3" x2="1737.57" y2="1685.69"/>' +
+      '<line x1="1949.43" y1="2409.22" x2="1949.43" y2="1895.65"/>' +
+      '<line x1="2161.31" y1="2412.4" x2="2161.31" y2="2078.14"/>' +
+      '<line x1="2373.15" y1="2409.61" x2="2373.15" y2="2268.24"/>';
+      return '<g class="corr" transform="translate(' + x + ',' + y + ') scale(' + s + ')" ' +
+           'style="stroke:#000;stroke-width:' + sw + ';stroke-linecap:round;stroke-linejoin:round;fill:none;">' +
+           inner + '</g>';
+  }
+
+  // Стрелка-треугольник на конце размерной линии.
+  // (x,y) — позиция острия; angleDeg — куда смотрит остриё (0=вправо,180=влево,90=вниз,-90=вверх);
+  // size — длина стрелки (в мм чертежа).
+  function arrowTri(x, y, angleDeg, size) {
+    var w = size * 0.35 * 0.45;     // ширина основания -30%
+    var a = angleDeg * Math.PI / 180;
+    var dx = Math.cos(a), dy = Math.sin(a);      // направление остриё
+    var nx = -dy, ny = dx;                       // перпендикуляр
+    var tipX = x, tipY = y;
+    var bx = x - dx * size, by = y - dy * size;
+    var p1x = bx + nx * w, p1y = by + ny * w;
+    var p2x = bx - nx * w, p2y = by - ny * w;
+    return '<polygon class="dimarr-tri" points="' +
+      tipX.toFixed(3) + ',' + tipY.toFixed(3) + ' ' +
+      p1x.toFixed(3) + ',' + p1y.toFixed(3) + ' ' +
+      p2x.toFixed(3) + ',' + p2y.toFixed(3) + '" />';
+  }
+
+  function buildSVG(d, withDims, forPDF) {
+    var GLUE = d.GLUE;
+    var flapH = d.flapH, wallH = d.wallH, totalH = d.totalH, panels = d.panels, totalW = d.totalW, slantRise = d.slantRise;
+    var y0 = 0, y1 = flapH, y2 = flapH + wallH, y3 = totalH;
+    var xs = [GLUE];
+    for (var p = 0; p < panels.length; p++) xs.push(xs[xs.length - 1] + panels[p]);
+    var last = panels.length;
+    var cut = [], fold = [];
+
+    cut.push(L(GLUE, y1, 0, y1 + slantRise, 'cut'));
+    cut.push(L(0, y1 + slantRise, 0, y2 - slantRise, 'cut'));
+    cut.push(L(0, y2 - slantRise, GLUE, y2, 'cut'));
+
+            // ===== ШТРИХОВКА КЛЕЕВОГО КЛАПАНА =====
+    // Клапан — трапеция с вершинами (правый край x=GLUE: y1..y2; левый край x=0: y1+slantRise..y2-slantRise)
+    var HATCH_COUNT = 12;  // желаемое кол-во штрихов
+    // зона по правому краю, где стоят начала штрихов (с равными отступами сверху и снизу)
+    var hbStep = (y2 - y1) / (HATCH_COUNT + 1);   // равный отступ = первый штрих тоже отступает
+    var hbDX = -1, hbDY = slantRise / GLUE;        // направление вдоль скоса (вниз-влево)
+
+    // границы трапеции как функции от y:
+    //   верхний скос: линия из (GLUE,y1) в (0,y1+slantRise)
+    //   нижний скос:  линия из (0,y2-slantRise) в (GLUE,y2)
+    //   левый край:   x=0
+    var hatch = [];
+    for (var hi = 1; hi <= HATCH_COUNT; hi++) {
+      var sy = y1 + hbStep * hi;   // старт на правом крае клапана, с отступом
+      var sx = GLUE;
+      // штрих идёт в направлении (hbDX,hbDY); найдём, где он упрётся в границу.
+      // параметрически: x = sx + hbDX*t, y = sy + hbDY*t, t>=0
+      var tEnd = Infinity;
+
+      // 1) левый край x=0  ->  t = sx / 1 (т.к. hbDX=-1)
+      var tLeft = sx;                 // sx + (-1)*t = 0  => t = sx
+      if (tLeft >= 0) tEnd = Math.min(tEnd, tLeft);
+
+      // 2) нижний скос: проходит через (0, y2-slantRise) и (GLUE, y2),
+      //    его уравнение: y = (y2 - slantRise) + (slantRise/GLUE)*x
+      //    подставляем x,y от t:
+      //    sy+hbDY*t = (y2-slantRise) + (slantRise/GLUE)*(sx+hbDX*t)
+      var kb = slantRise / GLUE;
+      var denomB = hbDY - kb * hbDX;
+      if (Math.abs(denomB) > 1e-9) {
+        var tBot = ((y2 - slantRise) + kb * sx - sy) / denomB;
+        if (tBot >= 0) tEnd = Math.min(tEnd, tBot);
+      }
+
+      if (!isFinite(tEnd) || tEnd <= 0) continue;
+      var ex = sx + hbDX * tEnd;
+      var ey = sy + hbDY * tEnd;
+      hatch.push(L(sx, sy, ex, ey, 'cut'));
+    }
+    cut = cut.concat(hatch);
+
+    function flapLeft(i)  { return (i === 0) ? xs[i] : xs[i] + SLOT_W / 2; }
+    function flapRight(i) { return (i === last - 1) ? xs[i + 1] : xs[i + 1] - SLOT_W / 2; }
+
+    var i, xL, xR;
+    for (i = 0; i < panels.length; i++) {
+      xL = flapLeft(i); xR = flapRight(i);
+      cut.push(L(xL, y0, xR, y0, 'cut'));
+      cut.push(L(xL, y3, xR, y3, 'cut'));
+    }
+    for (i = 0; i < panels.length; i++) {
+      xL = flapLeft(i); xR = flapRight(i);
+      cut.push(L(xL, y0, xL, y1, 'cut'));
+      cut.push(L(xR, y0, xR, y1, 'cut'));
+      cut.push(L(xL, y2, xL, y3, 'cut'));
+      cut.push(L(xR, y2, xR, y3, 'cut'));
+    }
+    cut.push(L(xs[last], y1, xs[last], y2, 'cut'));
+
+    fold.push(L(GLUE, y1, totalW, y1, 'fold'));
+    fold.push(L(GLUE, y2, totalW, y2, 'fold'));
+    for (i = 1; i < panels.length; i++) fold.push(L(xs[i], y1, xs[i], y2, 'fold'));
+    fold.push(L(GLUE, y1, GLUE, y2, 'fold'));
+
+    var dims = '';
+    if (withDims) {
+      var base = Math.max(totalW, totalH);
+      var fontSize = base * 0.018 * 1.2 * 1.2;
+      var off = base * 0.06;
+      var tick = off * 0.15;
+      var extTick = tick * 5.5;     // длина выносок (синие линии к чертежу)
+      var arrLen = tick * 2.2;      // длина стрелки
+      var txtGap = tick * 1.5;
+      var vTxtGap = tick * 2.5;
+
+      // ===== ГОРИЗОНТАЛЬНЫЕ РАЗМЕРЫ СЕКЦИЙ (под чертежом) =====
+      var dimY = y3 + off;
+      var xMarks = [0, GLUE, xs[1], xs[2], xs[3], totalW];
+      var labels = [GLUE, panels[0], panels[1], panels[2], panels[3]];
+      // i=0 — клеевой клапан (GLUE), его размер не показываем
+      for (i = 1; i < xMarks.length - 1; i++) {
+        var a = xMarks[i], b = xMarks[i + 1], mid = (a + b) / 2;
+        var isFirst = (i === 1);
+        var isLast = (i === xMarks.length - 2);
+        dims += L(a, dimY, b, dimY, 'dim');
+        dims += L(a, dimY - extTick, a, dimY + tick, 'dim');
+        dims += L(b, dimY - extTick, b, dimY + tick, 'dim');
+        // крайняя левая стрелка (первая засечка) — наружу (влево); остальные — внутрь
+        dims += arrowTri(a, dimY, isFirst ? 180 : 0, arrLen);
+        // крайняя правая стрелка (последняя засечка) — наружу (вправо); остальные — внутрь
+        dims += arrowTri(b, dimY, isLast ? 0 : 180, arrLen);
+        dims += '<text class="dimtxt" style="font-size:' + fontSize + 'px" x="' + mid + '" y="' + (dimY - txtGap) + '" text-anchor="middle">' + labels[i] + '</text>';
+      }
+      // ===== ОБЩАЯ ШИРИНА =====
+      var totY = dimY + off;
+      dims += L(0, totY, totalW, totY, 'dim');
+      dims += arrowTri(0, totY, 180, arrLen);
+      dims += arrowTri(totalW, totY, 0, arrLen);
+      dims += L(0, dimY - extTick, 0, totY + tick, 'dim');
+      dims += L(totalW, totY - extTick, totalW, totY + tick, 'dim');
+      dims += '<text class="dimtxt" style="font-size:' + fontSize + 'px" x="' + (totalW / 2) + '" y="' + (totY - txtGap) + '" text-anchor="middle">' + totalW + '</text>';
+
+      // ===== ВЕРТИКАЛЬНЫЕ РАЗМЕРЫ СЕКЦИЙ (справа от чертежа) =====
+      var dimX = totalW + off;
+      var yMarks = [{ a: y0, b: y1, label: flapH }, { a: y1, b: y2, label: wallH }, { a: y2, b: y3, label: flapH }];
+      for (var k = 0; k < yMarks.length; k++) {
+        var m = yMarks[k];
+        var midv = (m.a + m.b) / 2;
+        var isTop = (k === 0);
+        var isBot = (k === yMarks.length - 1);
+        dims += L(dimX, m.a, dimX, m.b, 'dim');
+        dims += L(dimX - extTick, m.a, dimX + tick, m.a, 'dim');
+        dims += L(dimX - extTick, m.b, dimX + tick, m.b, 'dim');
+        // крайняя верхняя стрелка — наружу (вверх); остальные — внутрь (вниз)
+        dims += arrowTri(dimX, m.a, isTop ? -90 : 90, arrLen);
+        // крайняя нижняя стрелка — наружу (вниз); остальные — внутрь (вверх)
+        dims += arrowTri(dimX, m.b, isBot ? 90 : -90, arrLen);
+        dims += '<text class="dimtxt" style="font-size:' + fontSize + 'px" x="' + (dimX - vTxtGap) + '" y="' + midv + '" text-anchor="middle" dominant-baseline="central" transform="rotate(-90 ' + (dimX - vTxtGap) + ' ' + midv + ')">' + m.label + '</text>';
+      }
+
+            // ===== ОБЩАЯ ВЫСОТА =====
+            var totX = dimX + off, midY = totalH / 2;
+      dims += L(totX, y0, totX, y3, 'dim');
+      dims += arrowTri(totX, y0, -90, arrLen);   // верхняя — внутрь
+      dims += arrowTri(totX, y3, 90, arrLen);    // нижняя — внутрь
+      dims += L(totX - extTick, y0, totX + tick, y0, 'dim');
+      dims += L(totX - extTick, y3, totX + tick, y3, 'dim');
+      dims += '<text class="dimtxt" style="font-size:' + fontSize + 'px" x="' + (totX - vTxtGap) + '" y="' + midY + '" text-anchor="middle" dominant-baseline="central" transform="rotate(-90 ' + (totX - vTxtGap) + ' ' + midY + ')">' + totalH + '</text>';
+    }
+    // значок гофры — жёстко в нижнем правом углу последней панели.
+    // Всё считается в долях от iconSize → при любых габаритах положение в углу одинаковое.
+    var lastPanel = panels[panels.length - 1];
+    var iconSize = Math.min(lastPanel, flapH) * ICON_SCALE;
+    // правый край значка отступает от правого края панели на ICON_PAD_X * iconSize
+    var iconX = xs[last] - iconSize - ICON_PAD_X * iconSize;
+    // по вертикали центрируем в нижнем флапе + относительное смещение
+    var iconY = y2 + (flapH - iconSize) / 2 + ICON_PAD_Y * iconSize;
+    var corrIcon = corrugationIcon(iconX, iconY, iconSize);
+    var margin = withDims ? Math.max(totalW, totalH) * 0.20 : 2;
+    var vbX = withDims ? -margin * 0.3 : 0;
+    var vbY = withDims ? -margin * 0.1 : 0;
+    var vbW = totalW + (withDims ? margin * 1.8 : 0);
+    var vbH = totalH + (withDims ? margin * 1.5 : 0);
+    var vb = vbX + ' ' + vbY + ' ' + vbW + ' ' + vbH;
+    var sizeAttr = withDims ? '' : 'width="' + totalW + 'mm" height="' + totalH + 'mm"';
+    var cls = withDims ? 'class="drawing"' : '';
+
+        // В PDF: убираем non-scaling-stroke и делаем линии толще, пунктир крупнее
+        var boost = forPDF ? PDF_LINE_BOOST : 1.25;
+    var cutSW = CUT_SW * boost;
+    var dimSW = DIM_SW * boost;
+    var dashArr = forPDF ? (4 * boost) + ' ' + (2 * boost) : '4 2';
+    var vecEff = forPDF ? '' : 'vector-effect:non-scaling-stroke;';
+
+    return '<svg xmlns="http://www.w3.org/2000/svg" ' + cls + ' viewBox="' + vb + '" ' + sizeAttr + ' preserveAspectRatio="xMidYMid meet">' +
+      '<style>' +
+      '.cut{stroke:#000;stroke-width:' + cutSW + ';fill:none;' + vecEff + '}' +
+      '.fold{stroke:#000;stroke-width:' + cutSW + ';fill:none;stroke-dasharray:' + dashArr + ';' + vecEff + '}' +
+      '.dim{stroke:#000;stroke-width:' + dimSW + ';stroke-linecap:round;' + vecEff + '}' +
+      '.dimarr-tri{fill:#000;stroke:none;}' +
+      '.dimtxt{font-family:Arial,sans-serif;font-weight:bold;fill:#000;}' +
+      '</style>' + cut.join('') + fold.join('') + dims + corrIcon + '</svg>';
+  }
+
+  function readBC() {
+    var l = parseFloat(document.getElementById('bcL').value);
+    var w = parseFloat(document.getElementById('bcW').value);
+    var h = parseFloat(document.getElementById('bcH').value);
+    var profile = document.getElementById('bcProfile').value;
+    if (!PROFILES[profile]) { alert("Этот профиль пока недоступен."); return null; }
+    if (!l || !w || !h) { alert("Введите все размеры!"); return null; }
+    return { l: l, w: w, h: h, profile: profile };
+  }
+
+  function previewBox() {
+    var v = readBC(); if (!v) return;
+    var svg = buildSVG(calc(v.l, v.w, v.h, v.profile), true);
+    var bottomImg = '<img src="cut_crease_gflap.png" alt="" class="preview-bottom-img">';
+    document.getElementById('preview').innerHTML = svg + bottomImg;
+  }
+
+  function generateBox() {
+    var v = readBC(); if (!v) return;
+    var svg = buildSVG(calc(v.l, v.w, v.h, v.profile), false);
+    var blob = new Blob([svg], { type: "image/svg+xml" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = '0201_(' + v.l + 'х' + v.w + 'х' + v.h + ')' + v.profile + '.svg';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  document.getElementById('btnDownload').addEventListener('click', generateBox);
+  document.getElementById('btnPreview').addEventListener('click', previewBox);
+  function generatePDF() {
+    var v = readBC(); if (!v) return;
+
+    // SVG чертежа с УСИЛЕННЫМИ линиями для PDF
+    var svgString = buildSVG(calc(v.l, v.w, v.h, v.profile), true, true);
+
+    var tmp = document.createElement('div');
+    tmp.innerHTML = svgString;
+    var svgEl = tmp.querySelector('svg');
+    var vb = svgEl.getAttribute('viewBox').split(/\s+/).map(parseFloat);
+    var drawW = vb[2], drawH = vb[3];
+
+    var RASTER = 4;
+    var pxW = Math.round(drawW * RASTER);
+    var pxH = Math.round(drawH * RASTER);
+    svgEl.setAttribute('width', pxW);
+    svgEl.setAttribute('height', pxH);
+    var fixedSvg = new XMLSerializer().serializeToString(svgEl);
+
+    var svgBlob = new Blob([fixedSvg], { type: 'image/svg+xml;charset=utf-8' });
+    var svgUrl = URL.createObjectURL(svgBlob);
+
+    // 1) грузим чертёж
+    var drawImg = new Image();
+    drawImg.onload = function () {
+      var canvas = document.createElement('canvas');
+      canvas.width = pxW; canvas.height = pxH;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, pxW, pxH);
+      ctx.drawImage(drawImg, 0, 0, pxW, pxH);
+      URL.revokeObjectURL(svgUrl);
+      var drawData = canvas.toDataURL('image/png');
+
+      // 2) грузим нижнюю картинку
+      var botImg = new Image();
+      botImg.crossOrigin = 'anonymous';
+      botImg.onload = function () {
+        placeIntoPDF(drawData, drawW, drawH, botImg);
+      };
+      botImg.onerror = function () {
+        // если картинка не загрузилась — делаем PDF только с чертежом
+        placeIntoPDF(drawData, drawW, drawH, null);
+      };
+      botImg.src = 'cut_crease_gflap.png';
+    };
+    drawImg.onerror = function () {
+      URL.revokeObjectURL(svgUrl);
+      alert('Не удалось отрисовать чертёж для PDF.');
+    };
+    drawImg.src = svgUrl;
+
+    function placeIntoPDF(drawData, dW, dH, bottomImage) {
+      var jsPDF = window.jspdf.jsPDF;
+      var pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+      var pageW = pdf.internal.pageSize.getWidth();
+      var pageH = pdf.internal.pageSize.getHeight();
+      var pad = 12;
+      var availW = pageW - pad * 2;
+      var availH = pageH - pad * 2;
+      var gap = 6; // зазор между чертежом и картинкой (мм)
+
+      // пропорции нижней картинки
+      var bImgAspect = bottomImage ? (bottomImage.naturalWidth / bottomImage.naturalHeight) : 0;
+
+      // Подбираем масштаб так, чтобы ОБА блока влезли по высоте и ширине.
+      // Нижнюю картинку рисуем долей ширины чертежа (как в предпросмотре — поменьше).
+      var BOTTOM_REL_W = 0.42; // ширина картинки относительно ширины чертежа
+
+      // Высота всей композиции при ширине = W:
+      //   чертёж: W * (dH/dW)
+      //   картинка: (W*BOTTOM_REL_W) / bImgAspect
+      function totalHeightAtWidth(W) {
+        var h = W * (dH / dW);
+        if (bottomImage) h += gap + (W * BOTTOM_REL_W) / bImgAspect;
+        return h;
+      }
+
+      // Ищем максимальную ширину W <= availW, при которой высота <= availH
+      var W = availW;
+      if (totalHeightAtWidth(W) > availH) {
+        // подгоняем по высоте бинарным поиском
+        var lo = 0, hi = availW;
+        for (var it = 0; it < 40; it++) {
+          var midW = (lo + hi) / 2;
+          if (totalHeightAtWidth(midW) <= availH) lo = midW; else hi = midW;
+        }
+        W = lo;
+      }
+
+      var drawOutW = W;
+      var drawOutH = W * (dH / dW);
+      var botOutW = bottomImage ? W * BOTTOM_REL_W : 0;
+      var botOutH = bottomImage ? botOutW / bImgAspect : 0;
+
+      var totalH = drawOutH + (bottomImage ? gap + botOutH : 0);
+
+      // Центрируем весь блок на листе
+      var offY = (pageH - totalH) / 2;
+      var drawX = (pageW - drawOutW) / 2;
+      var drawY = offY;
+
+      pdf.addImage(drawData, 'PNG', drawX, drawY, drawOutW, drawOutH);
+
+      if (bottomImage) {
+        var botX = (pageW - botOutW) / 2;
+        var botY = drawY + drawOutH + gap;
+        try {
+          // переводим картинку в dataURL через canvas (на случай PNG с прозрачностью — кладём белый фон)
+          var bc = document.createElement('canvas');
+          bc.width = bottomImage.naturalWidth;
+          bc.height = bottomImage.naturalHeight;
+          var bctx = bc.getContext('2d');
+          bctx.fillStyle = '#ffffff';
+          bctx.fillRect(0, 0, bc.width, bc.height);
+          bctx.drawImage(bottomImage, 0, 0);
+          var botData = bc.toDataURL('image/png');
+          pdf.addImage(botData, 'PNG', botX, botY, botOutW, botOutH);
+        } catch (e) {
+          // если картинка с другого домена и canvas «загрязнён» — пропускаем её
+        }
+      }
+
+      pdf.save('0201_(' + v.l + 'х' + v.w + 'х' + v.h + ')' + v.profile + '.pdf');
+    }
+  }
+
+  document.getElementById('btnPDF').addEventListener('click', generatePDF);
+
+    // ============================================================
+  // ТАБЛИЦА ФОРМУЛ КАЛЬКУЛЯТОРА РАЗВЕРТКИ
+  // Формат: 'КОНСТРУКЦИЯ': { 'ПРОФИЛЬ': { L: длина_заготовки, W: ширина_заготовки } }
+  // В формулах доступны переменные: l, w, h
+  // Чтобы добавить формулу — просто впиши новую строку.
+  // ============================================================
+  var CALC_FORMULAS = {
+    '0200': {
+      // профиль E недоступен для 0200
+      'B':  { L: function(l,w,h){ return (l+w)*2+40; },  W: function(l,w,h){ return (w+4)/2+h; } },
+      'C':  { L: function(l,w,h){ return (l+w)*2+47; },  W: function(l,w,h){ return Math.floor((w+5)/2)+h; } },
+      'BC': { L: function(l,w,h){ return (l+w)*2+65; },  W: function(l,w,h){ return (w+12)/2+h; } },
+      'EB': { L: function(l,w,h){ return (l+w)*2+56; },  W: function(l,w,h){ return (w+7)/2+h; } }
+    },
+    '0203': {
+      'E':  { L: function(l,w,h){ return (l+w)*2+36; },  W: function(l,w,h){ return (w+1)*2+(h+2); } },
+      'B':  { L: function(l,w,h){ return (l+w)*2+40; },  W: function(l,w,h){ return (w+2)*2+(h+3); } },
+      'C':  { L: function(l,w,h){ return (l+w)*2+47; },  W: function(l,w,h){ return (w+2)*2+(h+5); } },
+      'BC': { L: function(l,w,h){ return (l+w)*2+65; },  W: function(l,w,h){ return (w+8)*2+(h+9); } }
+      // профиль EB недоступен для 0203
+    },
+    '0410': {
+      'E':  { L: function(l,w,h){ return l+h+h+7; },  W: function(l,w,h){ return (w+h)*2+h+16; } },
+      'B':  { L: function(l,w,h){ return l+h+h+7; },  W: function(l,w,h){ return (h+w+h+w+h)+16; } },
+      'C':  { L: function(l,w,h){ return l+h+h+7; },  W: function(l,w,h){ return (w+h)*2+h+16; } },
+      'BC': { L: function(l,w,h){ return l+h+h+7; },  W: function(l,w,h){ return (w+h)*2+h+16; } }
+    }
+    // СЮДА добавляй остальные конструкции по тому же образцу
+  };
+
+    // Профили, недоступные для конкретной конструкции
+    var PROFILE_DISABLED = {
+    '0200': ['E'],
+    '0203': ['EB'],
+    '0201': ['EB']   // как было раньше — EB пока недоступен для 0201
+  };
+  var CONSTRUCTIONS = ['0200','0201','0203','0216','0401','0403','0409','0410','0422','0426','0427','0452','0711'];
+  var calcSel = document.getElementById('calcConstruction');
+  CONSTRUCTIONS.forEach(function (c) {
+    var ready = (c === '0201') || !!CALC_FORMULAS[c];   // готова, если есть формулы
+    var opt = document.createElement('option');
+    opt.value = c;
+    opt.textContent = ready ? c : c + ' (скоро)';
+    if (!ready) opt.disabled = true;
+    calcSel.appendChild(opt);
+  });
+  calcSel.value = '0201';
+
+var calcProfileSel = document.getElementById('calcProfile');
+
+function updateProfileAvailability() {
+  var construction = calcSel.value;
+  var disabledList = PROFILE_DISABLED[construction] || [];
+  Array.prototype.forEach.call(calcProfileSel.options, function (opt) {
+    var off = disabledList.indexOf(opt.value) !== -1;
+    opt.disabled = off;
+    // подпись: дописываем "(недоступен)" к запрещённым
+    var base = opt.value;
+    opt.textContent = off ? base + ' (недоступен)' : base;
+  });
+  // если текущий выбранный профиль стал недоступен — переключаем на первый доступный
+  var cur = calcProfileSel.options[calcProfileSel.selectedIndex];
+  if (cur && cur.disabled) {
+    var firstOk = Array.prototype.filter.call(calcProfileSel.options, function (o) { return !o.disabled; })[0];
+    if (firstOk) calcProfileSel.value = firstOk.value;
+  }
+  // перерисовать кастомный список
+  var wrap = calcProfileSel.closest('.cs-wrap');
+  if (wrap && wrap._csRebuild) wrap._csRebuild();
+}
+
+calcSel.addEventListener('change', updateProfileAvailability);
+
+function calcDevelopment() {
+    var construction = calcSel.value;
+    var l = parseFloat(document.getElementById('calcL').value);
+    var w = parseFloat(document.getElementById('calcW').value);
+    var h = parseFloat(document.getElementById('calcH').value);
+    var profile = document.getElementById('calcProfile').value;
+    var resL = document.getElementById('resL');
+    var resW = document.getElementById('resW');
+
+    if (!l || !w || !h) { alert("Введите все размеры!"); resL.value = ''; resW.value = ''; return; }
+
+    // 0201 считается старым способом (через calc + профили panels)
+    if (construction === '0201') {
+      if (!PROFILES[profile]) { resL.value = 'скоро'; resW.value = 'скоро'; return; }
+      var d = calc(l, w, h, profile);
+      resL.value = d.totalW;
+      resW.value = d.totalH;
+      return;
+    }
+
+    // Остальные конструкции — из таблицы CALC_FORMULAS
+    var f = CALC_FORMULAS[construction] && CALC_FORMULAS[construction][profile];
+    if (!f) { resL.value = 'скоро'; resW.value = 'скоро'; return; }
+
+    resL.value = f.L(l, w, h);
+    resW.value = f.W(l, w, h);
+  }
+
+  document.getElementById('btnCalc').addEventListener('click', calcDevelopment);
+    // ============================================================
+  // УКЛАДКА НА ПОДДОН
+  // ============================================================
+  // Толщина одного сложенного (плоского) короба по профилю, мм.
+  // Поправь под свои реальные значения при необходимости.
+  var FLAT_THICKNESS = { 'E': 3, 'B': 7, 'C': 9, 'BC': 14, 'EB': 10 };
+
+  function calcPallet() {
+    // 1. Берём результат развёртки из калькулятора
+    var devL = parseFloat(document.getElementById('resL').value); // длина развёртки
+    var devW = parseFloat(document.getElementById('resW').value); // ширина развёртки
+    var profile = document.getElementById('calcProfile').value;
+
+    // Поддон: фиксированный выбор + перманентный припуск 50 мм
+    var palParts = document.getElementById('palType').value.split('x');
+    var palW = parseFloat(palParts[0]);   // ширина поддона (800 / 1000)
+    var palL = parseFloat(palParts[1]);   // длина поддона (1200)
+    var OVER = 50;                         // припуск к длине и ширине, перманентно
+
+    var perStack = parseFloat(document.getElementById('palPerStack').value); // кратность (шт в стопке)
+
+    var outLayout = document.getElementById('palLayout');
+    var outL = document.getElementById('palOutL');
+    var outW = document.getElementById('palOutW');
+    var outH = document.getElementById('palOutH');
+    var outTotal = document.getElementById('palTotal');
+
+    if (!devL || !devW) { alert('Сначала рассчитай развёртку (калькулятор развёртки).'); return; }
+
+    // 2. След одного изделия в сложенном виде:
+    //    бОльшая сторона развёртки складывается пополам (склейка), вторая — как есть.
+    var boxLong  = Math.max(devL, devW) / 2;   // длинная сторона изделия
+    var boxShort = Math.min(devL, devW);       // короткая сторона изделия
+
+    // 3. Раскладка: перебираем 2 ориентации, берём где больше изделий.
+    //    Свес OVER допускается на каждую сторону поддона.
+    function fit(itemAlongL, itemAlongW) {
+      var nL = Math.floor((palL + OVER) / itemAlongL);
+      var nW = Math.floor((palW + OVER) / itemAlongW);
+      return { nL: Math.max(nL, 0), nW: Math.max(nW, 0), count: Math.max(nL,0) * Math.max(nW,0),
+               itemAlongL: itemAlongL, itemAlongW: itemAlongW };
+    }
+    var A = fit(boxLong, boxShort);   // длинная сторона изделия вдоль длины поддона
+    var B = fit(boxShort, boxLong);   // повёрнуто на 90°
+    var best = (B.count > A.count) ? B : A;
+
+    if (best.count === 0) {
+      outLayout.value = 'не влезает';
+      outL.value = outW.value = outH.value = outTotal.value = '—';
+      return;
+    }
+
+    // 4. Габариты паллеты с грузом = ряды × сторона изделия + припуск 50 мм
+    var gabL = best.nL * best.itemAlongL + OVER;
+    var gabW = best.nW * best.itemAlongW + OVER;
+    var perLayer = best.count; // изделий в одном слое (вид сверху)
+
+    outLayout.value = best.nL + ' x ' + best.nW + ' (' + perLayer + ' шт/слой)';
+    outL.value = Math.round(gabL);
+    outW.value = Math.round(gabW);
+
+    // 5. Высота стопки и общее количество
+    if (perStack) {
+      var th = FLAT_THICKNESS[profile] || 7;
+      outH.value = Math.round(perStack * th);
+      outTotal.value = perLayer * perStack;
+    } else {
+      outH.value = 'укажи кратность';
+      outTotal.value = perLayer + ' шт/слой';
+    }
+  }
+
+  document.getElementById('btnPallet').addEventListener('click', calcPallet);
+  // ============================================================
+  // КАСТОМНЫЕ ВЫПАДАЮЩИЕ СПИСКИ (надстройка над нативными <select>)
+  // ============================================================
+  function buildCustomSelect(selectEl) {
+    if (selectEl.dataset.csReady) return;
+    selectEl.dataset.csReady = '1';
+
+    var wrap = document.createElement('div');
+    wrap.className = 'cs-wrap';
+    if (selectEl.disabled) wrap.classList.add('cs-disabled');
+    selectEl.parentNode.insertBefore(wrap, selectEl);
+    wrap.appendChild(selectEl);
+    selectEl.classList.add('cs-native');
+
+    var display = document.createElement('div');
+    display.className = 'cs-display';
+    var label = document.createElement('span');
+    label.className = 'cs-label';
+    var arrow = document.createElement('span');
+    arrow.className = 'cs-arrow';
+    arrow.innerHTML = '\u25BC';
+    display.appendChild(label);
+    display.appendChild(arrow);
+    wrap.appendChild(display);
+
+    var list = document.createElement('div');
+    list.className = 'cs-list';
+    wrap.appendChild(list);
+
+    function syncLabel() {
+      var opt = selectEl.options[selectEl.selectedIndex];
+      label.textContent = opt ? opt.textContent : '';
+    }
+
+    function rebuild() {
+      list.innerHTML = '';
+      Array.prototype.forEach.call(selectEl.options, function (opt) {
+        var item = document.createElement('div');
+        item.className = 'cs-option';
+        item.textContent = opt.textContent;
+        if (opt.disabled) item.classList.add('disabled');
+        if (opt.selected) item.classList.add('selected');
+        item.addEventListener('click', function (e) {
+          e.stopPropagation();
+          if (opt.disabled) return;
+          selectEl.value = opt.value;
+          selectEl.dispatchEvent(new Event('change', { bubbles: true }));
+          syncLabel();
+          markSelected();
+          close();
+        });
+        list.appendChild(item);
+      });
+      syncLabel();
+    }
+
+    function markSelected() {
+      var items = list.querySelectorAll('.cs-option');
+      Array.prototype.forEach.call(selectEl.options, function (opt, i) {
+        if (items[i]) items[i].classList.toggle('selected', opt.selected);
+      });
+    }
+
+    function open() {
+      closeAll();
+      var rect = wrap.getBoundingClientRect();
+      var spaceBelow = window.innerHeight - rect.bottom;
+      var listH = 240;
+      if (spaceBelow < listH) {
+        list.style.top = 'auto';
+        list.style.bottom = 'calc(100% + 4px)';
+      } else {
+        list.style.top = 'calc(100% + 4px)';
+        list.style.bottom = 'auto';
+      }
+      wrap.classList.add('open');
+    }
+    function close() { wrap.classList.remove('open'); }
+
+    display.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (wrap.classList.contains('open')) close(); else open();
+    });
+
+    selectEl.addEventListener('change', function () { syncLabel(); markSelected(); });
+
+    rebuild();
+    wrap._csRebuild = rebuild;
+  }
+
+  var closeAll = function () {
+    var opened = document.querySelectorAll('.cs-wrap.open');
+    Array.prototype.forEach.call(opened, function (w) { w.classList.remove('open'); });
+  };
+  document.addEventListener('click', closeAll);
+
+  ['bcConstruction', 'bcProfile', 'calcConstruction', 'calcProfile', 'palType'].forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) buildCustomSelect(el);
+  });
+
+  // выставить доступность профилей под стартовую конструкцию
+  updateProfileAvailability();
+})();
+</script>
+</body>
+</html>
