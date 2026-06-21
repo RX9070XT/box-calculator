@@ -446,7 +446,6 @@ body[data-theme="eye"] {
     <div class="theme-switch">
       <button type="button" class="theme-btn active" data-set="light" title="Светлая тема"></button>
       <button type="button" class="theme-btn"        data-set="dark"  title="Тёмная тема"></button>
-      <button type="button" class="theme-btn"        data-set="eye"   title="Для глаз"></button>
     </div>
   </header>
   
@@ -486,7 +485,7 @@ body[data-theme="eye"] {
               </select>
             </div>
             <div class="input-group"><label>Кратность</label><input type="number" id="palPerStack" placeholder="шт"></div>
-            <div class="toggle-row">
+            <div class="toggle-row" style="display:none;">
               <label class="toggle-label" for="toggleCoef">Коэф. выхода</label>
               <label class="ios-toggle">
                 <input type="checkbox" id="toggleCoef">
@@ -1861,6 +1860,7 @@ html += '</div>'; // /res-block паллет
   // восстановить тему из памяти (по умолчанию — светлая)
   var savedTheme = 'light';
   try { savedTheme = localStorage.getItem('sabos_theme') || 'light'; } catch (e) {}
+  if (savedTheme === 'eye') savedTheme = 'light';   // тема «для глаз» временно отключена
   applyTheme(savedTheme);
   // предзагрузка тёмных вариантов кнопок (_2.png) при старте — чтобы не мигали при disabled
   ['preview_2.png','count_2.png','download_2.png','pdf_2.png'].forEach(function (src) {
