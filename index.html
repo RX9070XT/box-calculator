@@ -1151,21 +1151,47 @@ body[data-theme="eye"] {
     // Диспетчер: какой генератор чертежа вызвать для текущей конструкции
     function buildDrawing(construction, v, withDims, forPDF) {
     if (construction === '0427') {
+      var err0427 = validate0427(v.l, v.w, v.h);
+      if (err0427) { alert(err0427); return null; }
       return build0427(v.l, v.w, v.h, v.profile, withDims, forPDF);
     }
     // по умолчанию — 0201
     var d = calc0201(v.l, v.w, v.h, v.profile);
     return buildSVG0201(d, withDims, forPDF);
   }
-          // ====== ГЕНЕРАТОР 0427 (изолированный модуль) ======
+                    // ====== ГЕНЕРАТОР 0427 (изолированный модуль) ======
+  // Предельные размеры для 0427 (мм)
+  var LIMITS_0427 = { L:[100,1300], W:[80,800], H:[50,300] };
+  // Проверка габаритов. Возвращает текст ошибки или null, если всё ОК.
+  function validate0427(l, w, h) {
+    var errs = [];
+    if (l < LIMITS_0427.L[0] || l > LIMITS_0427.L[1]) errs.push('Длина: ' + LIMITS_0427.L[0] + '–' + LIMITS_0427.L[1] + ' мм');
+    if (w < LIMITS_0427.W[0] || w > LIMITS_0427.W[1]) errs.push('Ширина: ' + LIMITS_0427.W[0] + '–' + LIMITS_0427.W[1] + ' мм');
+    if (h < LIMITS_0427.H[0] || h > LIMITS_0427.H[1]) errs.push('Высота: ' + LIMITS_0427.H[0] + '–' + LIMITS_0427.H[1] + ' мм');
+    if (h > w) errs.push('Высота (' + h + ') не может быть больше ширины (' + w + ')');
+    if (w > l) errs.push('Ширина (' + w + ') не может быть больше длины (' + l + ')');
+    return errs.length ? ('Для 0427 недопустимые размеры:\n' + errs.join('\n')) : null;
+  }
+
   // Кол-во замков: 50–100 → 1; 100–500 → 2
-  function lockCount0427(w) { return (w <= 100) ? 1 : 2; }
-  // Высота замка (= основание на линии реза): 50–80 → 30; 80–200 → 40; 200–300 → 45; 300–500 → 55
+  function lockCount0427(w) { return (w <= 130) ? 1 : 2; }
+    // Высота замка (= основание на линии реза) по ШИРИНЕ короба W, мм:
+  // 80–130→30, 130–180→35, 180–250→40, 250–300→45, 300–350→50,
+  // 350–400→55, 400–500→65, (500–600→65), 600–700→75, 700–800→100
   function lockHeight0427(w) {
-    if (w <= 80)  return 30;
-    if (w <= 200) return 40;
-    if (w <= 300) return 45;
-    return 55;
+    if (w <= 130) return 30;
+    if (w <= 180) return 35;
+    if (w <= 250) return 45;
+    if (w <= 300) return 55;
+    if (w <= 350) return 60;
+    if (w <= 400) return 65;
+    if (w <= 450) return 75;
+    if (w <= 500) return 80;
+    if (w <= 550) return 85;
+    if (w <= 600) return 90;
+    if (w <= 650) return 95;   // 400–500 и 500–600 → 65
+    if (w <= 700) return 110;
+    return 140;                // 700–800
   }
 
   function jointRadius0427(maxSize) {
@@ -1179,6 +1205,27 @@ body[data-theme="eye"] {
 function build0427(l, w, h, profile, withDims, forPDF) {
   var c = [], f = [];
   var lockLevels0427 = [];   // Y-центры замков/отверстий (общий для отверстий и замков)
+
+    // ── ЕДИНЫЙ расчёт Y-уровней замков/отверстий ──
+  // Центрируем по ФАКТИЧЕСКОЙ зоне реза грани s2 (с учётом подъёма зелёной GUP+GRUP
+  // сверху TOPD). Иначе верх/низ несимметричны на (GUP+GRUP-TOPD)≈3мм.
+  var LOCK_TOPD_0427 = (profile === 'B') ? 1 : 0;         // верх полки опущен вниз
+  var LOCK_BOTUP_0427 = (profile === 'B') ? (1 + 3) : 0;  // GUP(1)+GRUP(3) — низ поднят
+  var LOCK_EDGE_0427 = Math.round(w * 0.25);
+  function lockLevels(yt, yb, n) {
+    // фактические края рабочей зоны реза
+    var top0 = yt + LOCK_TOPD_0427;
+    var bot0 = yb - LOCK_BOTUP_0427;
+    var lv = [];
+    if (n <= 1) { lv.push((top0 + bot0) / 2); return lv; }
+    var top = top0 + LOCK_EDGE_0427;
+    var bot = bot0 - LOCK_EDGE_0427;
+    if (bot < top) { var mid=(top0+bot0)/2; bot=mid; top=mid; }   // защита
+    for (var i = 0; i < n; i++) {
+      lv.push(top + (bot - top) * i / (n - 1));
+    }
+    return lv;
+  }
   var holeLeftX = null, holeRightX = null;   // X-края отверстий под замок (для размера 307)
     // Сдвиг для профиля B: линия B1 вниз на 3, биговка A1 внутрь на 3 с двух сторон
     var B1_DROP   = (profile === 'B') ? 3 : 0;   // B1 опускается вниз на 3 мм
@@ -1195,7 +1242,7 @@ function build0427(l, w, h, profile, withDims, forPDF) {
     var yEar   = h + 1;
   var yShldr = w + 8;    // плечо = ширина + 8
   var yBody  = h + 3;
-  var yHgt   = w + 3;    // клапан высоты = ширина + 3
+  var yHgt   = w + 6;    // клапан высоты = ширина + 3
   var yBot   = h + 2;
   var Y0=0, Y1=yEar, Y2=Y1+yShldr, Y3=Y2+yBody, Y4=Y3+yHgt, Y5=Y4+yBot;
   var totalH = Y5;
@@ -1207,10 +1254,11 @@ function build0427(l, w, h, profile, withDims, forPDF) {
   var body = (l + 3) + BODY_GREEN_DELTA;
   var side1 = h + 4;
   var side2 = h + 2;
-  var offX = side1 + LEDGE + side2 + 20;
+  var KEY_OUT = 5;                              // вылет ответного замка наружу
+  var offX = side1 + LEDGE + side2 + KEY_OUT;   // левое поле = плечо + полка + полка + замок
   function X(v){ return v + offX; }
   var XbL = X(0), XbR = X(body);
-  var totalW = XbR + side1 + LEDGE + side2 + 20;
+  var totalW = XbR + side1 + LEDGE + side2 + KEY_OUT;   // = body + (side1+LEDGE+side2+5)*2
 
     // Округление до 0.01 мм — убирает «дробный мусор» тригонометрии (107.486 → 108 на биговках).
     function rnd(v){ return Math.round(v * 100) / 100; }
@@ -1509,8 +1557,9 @@ earGeom = {
     // список интервалов [y1,y2], где реза быть НЕ должно (основание замка)
     function lockGaps() {
       var gaps = [];
-      for (var g = 0; g < lockN_gap; g++) {
-        var gy = yt + span_gap * (g + 1) / (lockN_gap + 1);
+      var lv = lockLevels(yt, yb, lockN_gap);   // те же центры, что у замков/отверстий
+      for (var g = 0; g < lv.length; g++) {
+        var gy = lv[g];
         gaps.push([gy - lockH_gap/2, gy + lockH_gap/2]);
       }
       return gaps;
@@ -1570,8 +1619,9 @@ earGeom = {
     var lockH_L = lockHeight0427(w);         // основание замка (на линии реза s2L)
     var keyOut = 5;                           // вылет замка наружу
     var span_L = yb - yt;
+    var lockLv_L = lockLevels(yt, yb, lockN_L);
     for (var t = 0; t < lockN_L; t++) {
-      var ty = yt + span_L * (t + 1) / (lockN_L + 1);   // тот же уровень, что отверстия
+      var ty = lockLv_L[t];   // симметричные уровни (edge = round(w*0.15))
       var baseTop = ty - lockH_L / 2, baseBot = ty + lockH_L / 2;   // основание = lockH
       var outTop  = ty - (lockH_L - 2) / 2, outBot = ty + (lockH_L - 2) / 2; // внешняя кромка −1мм с каждой стороны
       c.push(L(s2L, baseTop, s2L - keyOut, outTop, 'cut'));         // верхний скос
@@ -1605,7 +1655,7 @@ earGeom = {
 
         // ── ОТВЕТНЫЕ ЗАМКИ на КРАЙНЕЙ грани s2R (наружу) ──
         for (var tr = 0; tr < lockN_L; tr++) {
-      var tyr = yt + span_L * (tr + 1) / (lockN_L + 1);
+          var tyr = lockLv_L[tr];
       var baseTopR = tyr - lockH_L / 2, baseBotR = tyr + lockH_L / 2;
       var outTopR  = tyr - (lockH_L - 2) / 2, outBotR = tyr + (lockH_L - 2) / 2;
       c.push(L(s2R, baseTopR, s2R + keyOut, outTopR, 'cut'));
@@ -1641,11 +1691,8 @@ earGeom = {
       return '<path class="cut" d="' + d + '"/>';
     }
 
-    // уровни центров — те же, что у ответных замков
-    lockLevels0427 = [];
-    for (var hi = 0; hi < lockN2; hi++) {
-      lockLevels0427.push(yt + span2 * (hi + 1) / (lockN2 + 1));
-    }
+        // уровни центров — те же, что у ответных замков (симметрично, edge = round(w*0.15))
+        lockLevels0427 = lockLevels(yt, yb, lockN2);
         // левая биговка XbL — сдвиг ВПРАВО (к центру, +HOLE_SHIFT)
         for (var li = 0; li < lockN2; li++) {
       var lcy = lockLevels0427[li];
@@ -1656,10 +1703,10 @@ earGeom = {
       var rcy = lockLevels0427[ri];
       c.push(roundRectHole(XbR - HOLE_SHIFT, rcy, holeW, holeH, rr));
     }
-    // ── сохраняем X-края отверстий для размерной линии 307 ──
-    // 307 = от ЛЕВОГО края левого отверстия до ПРАВОГО края правого отверстия
-    holeLeftX  = (XbL + HOLE_SHIFT) - holeW / 2;   // левый край левого отверстия
-    holeRightX = (XbR - HOLE_SHIFT) + holeW / 2;   // правый край правого отверстия
+        // ── сохраняем ВНУТРЕННИЕ X-края отверстий для размера 307 ──
+    // 307 = от ПРАВОГО края ЛЕВОГО отверстия до ЛЕВОГО края ПРАВОГО отверстия
+    holeLeftX  = (XbL + HOLE_SHIFT) + holeW / 2;   // правый (внутренний) край левого отверстия
+    holeRightX = (XbR - HOLE_SHIFT) - holeW / 2;   // левый (внутренний) край правого отверстия
   })();
      // ============================================================
   // НИЖНИЙ КЛАПАН (Y4..Y5)
@@ -1725,10 +1772,11 @@ earGeom = {
       return g;
     }
 
-    // ── горизонтальный размер (стрелки внутрь), цифры по центру линии ──
-    function hDimIn(x1,x2,yLine,txt){
+        // ── горизонтальный размер: носики в ПРОТИВОПОЛОЖНУЮ сторону ──
+        function hDimIn(x1,x2,yLine,txt){
       var s=L(x1,yLine,x2,yLine,'dim');
-      s+=arrowTri(x1,yLine,0,arr)+arrowTri(x2,yLine,180,arr);
+      // левый конец — остриё ВЛЕВО (180), правый — остриё ВПРАВО (0)
+      s+=arrowTri(x1,yLine,180,arr)+arrowTri(x2,yLine,0,arr);
       s+=dimLabel((x1+x2)/2, yLine, txt, 0);
       return s;
     }
@@ -1739,43 +1787,80 @@ earGeom = {
       s+=dimLabel((x1+x2)/2, yLine, txt, 0);
       return s;
     }
-    // ── вертикальный размер (стрелки внутрь), цифры по центру линии ──
-    function vDimIn(x,y1,y2,txt){
-      var s=L(x,y1,x,y2,'dim');
-      s+=arrowTri(x,y1,-90,arr)+arrowTri(x,y2,90,arr);
+        // ── вертикальный размер: padTop/padBot — отступ концов линии внутрь ──
+        function vDimIn(x,y1,y2,txt,padTop,padBot){
+      padTop = padTop||0; padBot = padBot||0;
+      var yA = y1 + padTop, yB = y2 - padBot;
+      var s=L(x,yA,x,yB,'dim');
+      s+=arrowTri(x,yA,-90,arr)+arrowTri(x,yB,90,arr);
       s+=dimLabel(x,(y1+y2)/2,txt,-90);
       return s;
     }
 
-    // ── 1) ВЕРХНЯЯ ДЛИНА (внутренняя высота l+3) на ярусе плеча ──
-    var topDimY = Y2 - off*0.6;
-    dims += hDimIn(XbL, XbR, topDimY, Math.round(l + 3));
+        // ── 1) ВЕРХНЯЯ ДЛИНА (внутр. l+3) — по краям ЗЕЛЁНОЙ панели (уже тела на BODY_GREEN_DELTA) ──
+        var greenInset = BODY_GREEN_DELTA / 2;     // зелёная панель уже тела на 12 мм с каждой стороны
+    var topDimY = Y2 - off*0.95;
+    dims += hDimIn(XbL + greenInset, XbR - greenInset, topDimY, Math.round(l + 3));
 
-    // ── 2) ДЛИНА ПО РИЛЁВКАМ (body) между Y2 и Y3 ──
-    var dyBody = (Y2 + Y3)/2;
-    dims += hDimIn(XbL, XbR, dyBody, Math.round(body));
+                                // ── 2) ДЛИНА ПО РИЛЁВКАМ основного тела — чуть НИЖЕ Y3 ──
+    // Геометрия линии по краям тела (XbL..XbR), НО подпись = фактический размер
+    // по красным рилёвкам. body тянется на XbL..XbR, а реальные жёлтые биговки тела
+    // сдвинуты внутрь → фактический размер меньше на BODY_DIM_FIX (=3 для B).
+    var BODY_DIM_FIX = (profile === 'B') ? 3 : 0;   // фантомные +3 убираем из ПОДПИСИ
+    var dyBody = Y3 + off * 0.65;
+    dims += hDimIn(XbL, XbR, dyBody, Math.round(body) - BODY_DIM_FIX);
 
-    // ── 3) ДЛИНА ПО ОТВЕРСТИЯМ (307) — от края левого до края правого ──
-    if (holeLeftX != null && holeRightX != null) {
-      var dyHole = Y3 + off*0.6;
+        // ── 3) ДЛИНА ПО ВНУТР. КРАЯМ ОТВЕРСТИЙ (307) — на уровне НИЖНЕГО ряда отверстий ──
+        if (holeLeftX != null && holeRightX != null) {
+      var dyHole;
+      if (lockLevels0427 && lockLevels0427.length) {
+        dyHole = lockLevels0427[lockLevels0427.length - 1];   // нижний ряд отверстий
+      } else {
+        dyHole = (Y3 + Y4) / 2;
+      }
       dims += hDimIn(holeLeftX, holeRightX, dyHole, Math.round(holeRightX - holeLeftX));
     }
 
-    // ── ВЕРТИКАЛЬНЫЕ ЯРУСЫ (82,208,83…) — ВНУТРИ короба, по центру тела ──
-    var dxIn = (XbL + XbR)/2;
-    var ys=[{a:Y0,b:Y1,t:yEar},{a:Y1,b:Y2,t:yShldr},{a:Y2,b:Y3,t:yBody},{a:Y3,b:Y4,t:yHgt},{a:Y4,b:Y5,t:yBot}];
-    for(var k=0;k<ys.length;k++){
-      var m=ys[k];
-      dims += vDimIn(dxIn, m.a, m.b, Math.round(m.t));
-    }
+                // ── ВЕРТИКАЛЬНЫЕ ЯРУСЫ (82,208,83…) — ВНУТРИ короба, сдвинуты ВПРАВО от центра ──
+                var dxIn = (XbL + XbR)/2 + (XbR - XbL) * 0.35;   // 0.15 = 15% полуширины вправо
 
-    // ── ОБЩАЯ ВЫСОТА (крайняя справа) ──
-    var dxTot = totalW + off*1.2;
-    dims += vDimIn(dxTot, Y0, Y5, Math.round(totalH));
+// Нижний рез клапана поднят на UP (=3 для B) → реальный низ короба = Y5 - BOTTOM_UP.
+// Размер 82 должен упираться в ЭТОТ рез, а не в номинальный Y5.
+var BOTTOM_UP = (profile === 'B') ? 3 : 0;
+var Y5real = Y5 - BOTTOM_UP;
 
-    // ── ОБЩАЯ ДЛИНА (снизу) ──
-    var dyTot = Y5 + off*1.2;
-    dims += hDimOut(0, totalW, dyTot, Math.round(totalW));
+// yHgt = w+6 (геометрия), НО по рилёвкам ярус = w+3 → на подписи убираем фантомные +3.
+var HGT_DIM_FIX = (profile === 'B') ? 3 : 0;
+var ys=[
+  {a:Y0,     b:Y1,     t:yEar},
+  {a:Y1,     b:Y2,     t:yShldr},
+  {a:Y2,     b:Y3,     t:yBody},
+  {a:Y3,     b:Y4,     t:yHgt - HGT_DIM_FIX},   // подпись = w+3 (реальный размер по рилёвкам)
+  {a:Y4,     b:Y5real, t:yBot}
+];
+for(var k=0;k<ys.length;k++){
+  var m=ys[k];
+  // остриё arrowTri стоит точно в точке (yA/yB), основание уходит внутрь → за рез не вылезает.
+  dims += vDimIn(dxIn, m.a, m.b, Math.round(m.t), 0, 0);
+}
+                // ── усики габаритов: длинная часть к чертежу + короткий хвостик с ОБРАТНОЙ стороны ──
+                var extGap = off * 1.05;    // длина «усика» в сторону чертежа
+    var extBack = off * 0.18;   // хвостик с обратной стороны (чуть-чуть торчит)
+
+// ── ОБЩАЯ ВЫСОТА (крайняя справа) ──
+// Низ клапана поднят на BOTTOM_UP → реальная высота = Y5real. Иначе фантомные +3 (660 вместо 657).
+var dxTot = totalW + off*1.2;
+dims += vDimIn(dxTot, Y0, Y5real, Math.round(totalH - BOTTOM_UP));
+// усик: влево к чертежу (extGap) + вправо наружу (extBack)
+dims += L(dxTot + extBack, Y0,     dxTot - extGap, Y0,     'dim');   // верхний
+dims += L(dxTot + extBack, Y5real, dxTot - extGap, Y5real, 'dim');   // нижний
+
+// ── ОБЩАЯ ДЛИНА (снизу) ──
+var dyTot = Y5 + off*1.2;
+dims += hDimOut(0, totalW, dyTot, Math.round(totalW));
+// усик: вверх к чертежу (extGap) + вниз наружу (extBack)
+dims += L(0,      dyTot + extBack, 0,      dyTot - extGap, 'dim');   // левый
+dims += L(totalW, dyTot + extBack, totalW, dyTot - extGap, 'dim');   // правый
   }
 
     // ВЕКТОР (withDims=false): margin=0, viewBox === width/height → масштаб СТРОГО 1:1 (мм в мм).
@@ -1845,15 +1930,17 @@ earGeom = {
     '</style>'+c.join('')+f.join('')+dims+'</svg>';
 }
 
-  function previewBox() {
+function previewBox() {
     var v = readBC(); if (!v) return;
     var svg = buildDrawing(calcSel.value, v, true, false);
+    if (!svg) return;
     document.getElementById('preview').innerHTML = svg;
   }
 
   function generateBox() {
     var v = readBC(); if (!v) return;
     var svg = buildDrawing(calcSel.value, v, false, false);
+    if (!svg) return;
     var blob = new Blob([svg], { type: "image/svg+xml" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -1870,8 +1957,9 @@ earGeom = {
   function generatePDF() {
     var v = readBC(); if (!v) return;
 
-        // SVG чертежа с УСИЛЕННЫМИ линиями для PDF
-        var svgString = buildDrawing(calcSel.value, v, true, true);
+               // SVG чертежа с УСИЛЕННЫМИ линиями для PDF
+               var svgString = buildDrawing(calcSel.value, v, true, true);
+    if (!svgString) return;
 
     var tmp = document.createElement('div');
     tmp.innerHTML = svgString;
@@ -1879,7 +1967,11 @@ earGeom = {
     var vb = svgEl.getAttribute('viewBox').split(/\s+/).map(parseFloat);
     var drawW = vb[2], drawH = vb[3];
 
-    var RASTER = 4;
+        // Ограничиваем МАКСИМАЛЬНУЮ сторону растра (а не слепой ×4).
+    // Для A4 300 dpi достаточно ~3500 px по длинной стороне.
+    var MAX_SIDE = 3500;
+    var RASTER = Math.min(4, MAX_SIDE / Math.max(drawW, drawH));
+    if (RASTER < 1) RASTER = 1;
     var pxW = Math.round(drawW * RASTER);
     var pxH = Math.round(drawH * RASTER);
     svgEl.setAttribute('width', pxW);
@@ -1899,7 +1991,8 @@ earGeom = {
       ctx.fillRect(0, 0, pxW, pxH);
       ctx.drawImage(drawImg, 0, 0, pxW, pxH);
       URL.revokeObjectURL(svgUrl);
-      var drawData = canvas.toDataURL('image/png');
+            // JPEG вместо PNG: чертёж на белом фоне сжимается в СОТНИ раз лучше.
+            var drawData = canvas.toDataURL('image/jpeg', 0.92);
 
             // нижняя картинка удалена — PDF только с чертежом
             placeIntoPDF(drawData, drawW, drawH, null);
@@ -1960,7 +2053,7 @@ earGeom = {
       var drawX = (pageW - drawOutW) / 2;
       var drawY = offY;
 
-      pdf.addImage(drawData, 'PNG', drawX, drawY, drawOutW, drawOutH);
+      pdf.addImage(drawData, 'JPEG', drawX, drawY, drawOutW, drawOutH);
 
       if (bottomImage) {
         var botX = (pageW - botOutW) / 2;
@@ -2138,7 +2231,14 @@ function calcDevelopment() {
     var resW = document.getElementById('resW');
 
     if (!l || !w || !h) { alert("Введите все размеры!"); resL.value = ''; resW.value = ''; renderResults(null); return; }
-    var devL, devW;
+
+// предельные размеры для 0427
+if (construction === '0427') {
+  var err0427c = validate0427(l, w, h);
+  if (err0427c) { alert(err0427c); resL.value = ''; resW.value = ''; renderResults(null); return; }
+}
+
+var devL, devW;
 
               // 0201 считается через половинки (1 или 2)
               if (construction === '0201') {
