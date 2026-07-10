@@ -296,8 +296,15 @@ body[data-theme="eye"] {
     border-radius: 8px;
   }
   #preview svg.drawing {
-    max-width: 100%; height: auto; display: block;
-    transform: translate(var(--preview-offset-x), var(--preview-offset-y));
+    width: 100%;
+    height: 100%;
+    display: block;
+    transform: none;                 /* сдвиг убран — чертёж центрируется viewBox'ом */
+    shape-rendering: geometricPrecision;
+    image-rendering: -webkit-optimize-contrast;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    transform-origin: center;
   }
   
   .version { margin-top: 30px; color: #999; font-size: 10px; }
@@ -563,7 +570,7 @@ body[data-theme="eye"] {
 (function () {
   var SLOT_W = 8;
   var GLUE_ANGLE_Y = 80;
-  var PT = 0.620;
+  var PT = 0.400;
   var CUT_SW = 2 * PT;
   var DIM_SW = 2 * PT;
   // Множитель толщины линий специально для PDF (1 = как на экране)
@@ -873,7 +880,7 @@ body[data-theme="eye"] {
     var dashArr = forPDF ? (4 * boost) + ' ' + (2 * boost) : '4 2';
     var vecEff = forPDF ? '' : 'vector-effect:non-scaling-stroke;';
 
-    return '<svg xmlns="http://www.w3.org/2000/svg" ' + cls + ' viewBox="' + vb + '" ' + sizeAttr + ' preserveAspectRatio="xMidYMid meet">' +
+    return '<svg xmlns="http://www.w3.org/2000/svg" '+cls+' viewBox="'+vb+'" '+sizeAttr+' preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" style="shape-rendering:geometricPrecision;">'+
       '<style>' +
       '.cut{stroke:#454545;stroke-width:' + cutSW + ';fill:none;' + vecEff + '}' +
       '.fold{stroke:#454545;stroke-width:' + cutSW + ';fill:none;stroke-dasharray:' + dashArr + ';' + vecEff + '}' +
@@ -1141,17 +1148,712 @@ body[data-theme="eye"] {
     return name + '_';
   }
 
+    // Диспетчер: какой генератор чертежа вызвать для текущей конструкции
+    function buildDrawing(construction, v, withDims, forPDF) {
+    if (construction === '0427') {
+      return build0427(v.l, v.w, v.h, v.profile, withDims, forPDF);
+    }
+    // по умолчанию — 0201
+    var d = calc0201(v.l, v.w, v.h, v.profile);
+    return buildSVG0201(d, withDims, forPDF);
+  }
+          // ====== ГЕНЕРАТОР 0427 (изолированный модуль) ======
+  // Кол-во замков: 50–100 → 1; 100–500 → 2
+  function lockCount0427(w) { return (w <= 100) ? 1 : 2; }
+  // Высота замка (= основание на линии реза): 50–80 → 30; 80–200 → 40; 200–300 → 45; 300–500 → 55
+  function lockHeight0427(w) {
+    if (w <= 80)  return 30;
+    if (w <= 200) return 40;
+    if (w <= 300) return 45;
+    return 55;
+  }
+
+  function jointRadius0427(maxSize) {
+  if (maxSize <= 75)  return 2;
+  if (maxSize <= 200) return 3;
+  if (maxSize <= 300) return 4;
+  if (maxSize <= 400) return 8;
+  return 12;
+}
+
+function build0427(l, w, h, profile, withDims, forPDF) {
+  var c = [], f = [];
+  var lockLevels0427 = [];   // Y-центры замков/отверстий (общий для отверстий и замков)
+  var holeLeftX = null, holeRightX = null;   // X-края отверстий под замок (для размера 307)
+    // Сдвиг для профиля B: линия B1 вниз на 3, биговка A1 внутрь на 3 с двух сторон
+    var B1_DROP   = (profile === 'B') ? 3 : 0;   // B1 опускается вниз на 3 мм
+  var A1_INSET  = (profile === 'B') ? 3 : 0;   // A1 смещается внутрь короба на 3 мм
+  var Rjoint = jointRadius0427(Math.max(l, w, h));
+  var R110 = h + 5;                 // большой купол
+  var R20  = R110 / 5;             // 1/5 от большого
+  var R4   = 4;                    // слоттер фикс
+  var R7   = 7;                    // фикс
+  var ANG  = 82.5 * Math.PI/180;  // угол касательной к горизонтали
+  var LEDGE = 10;
+
+    // ── Y-ярусы ──
+    var yEar   = h + 1;
+  var yShldr = w + 8;    // плечо = ширина + 8
+  var yBody  = h + 3;
+  var yHgt   = w + 3;    // клапан высоты = ширина + 3
+  var yBot   = h + 2;
+  var Y0=0, Y1=yEar, Y2=Y1+yShldr, Y3=Y2+yBody, Y4=Y3+yHgt, Y5=Y4+yBot;
+  var totalH = Y5;
+
+    // ── X тело ──
+  // Внутр. длина должна сидеть на ЗЕЛЁНОЙ (верхней) панели. Жёлтая (body) на 24мм её ШИРЕ,
+  // поэтому увеличиваем body на 24 → зелёная встаёт на l+3.
+  var BODY_GREEN_DELTA = (profile === 'B') ? 24 : 0;
+  var body = (l + 3) + BODY_GREEN_DELTA;
+  var side1 = h + 4;
+  var side2 = h + 2;
+  var offX = side1 + LEDGE + side2 + 20;
+  function X(v){ return v + offX; }
+  var XbL = X(0), XbR = X(body);
+  var totalW = XbR + side1 + LEDGE + side2 + 20;
+
+    // Округление до 0.01 мм — убирает «дробный мусор» тригонометрии (107.486 → 108 на биговках).
+    function rnd(v){ return Math.round(v * 100) / 100; }
+  function A(x2,y2,r,sw){ return 'A'+rnd(r).toFixed(2)+' '+rnd(r).toFixed(2)+' 0 0 '+sw+' '+rnd(x2).toFixed(2)+' '+rnd(y2).toFixed(2); }
+  function M(x,y){ return 'M'+rnd(x).toFixed(2)+' '+rnd(y).toFixed(2); }
+  function Ln(x,y){ return 'L'+rnd(x).toFixed(2)+' '+rnd(y).toFixed(2); }
+
+  // ============================================================
+  // Строит ОДНО ухо (купол R110 + R20 + касательная + слоттер R4)
+  // axisX  — осевая линия (край тела), от которой ухо уходит наружу
+  // dir    — направление наружу: -1 (влево) для левого, +1 (вправо) для правого
+  // yBig   — Y вершины R110 (верх купола, на биговке)
+  // ySlot  — Y слоттера R4 (низ уха, на биговке яруса)
+  // ============================================================
+  var shoulderPaths = [];   // клапаны-плечи (отдельные элементы, не зеркалятся с ушами)
+  var earGeom = null;       // сохранённая геометрия касательной+R20 верхнего уха (левого)
+  var earTanR20d = null;    // готовый d-фрагмент «R20+касательная» верхнего уха (копируем 1:1)
+  var earSlotY = null;      // Y-биговка уха (Y1), от которой копируем
+     
+    // Копия фрагмента «R20 + касательная» верхнего уха 1:1 (без изменения формы),
+  // перенесённая по вертикали с яруса Y1 (earSlotY) на ярус ySlotY.
+  // Левый берётся как есть; правый — зеркалом левого уже делается снаружи через <g> (mirrorX).
+      // Копия фрагмента «R20 + касательная» верхнего уха (1:1) на ярус ySlotY,
+  // + полукруг R4 (центр на пересечении биговок) + вертикальная линия реза
+  // от вершины R20 вниз до края R4.
+    // Копия «ПОЛНЫЙ R20 + касательная» уха на ярус ySlotY (1:1, форма не меняется)
+  // + полукруг R4 (центр на пересечении биговок)
+  // + вертикаль ПО ВЕРШИНАМ R20 (носикам): соединяет носик R20 копии и носик R20 плеча.
+  // Носики, торчащие внутрь за вертикаль, режутся вручную в Corel — программа их НЕ трогает.
+  function slotR4(axisX, ySlotY, dir){
+    var out = [];
+    if (earTanR20d == null || earGeom == null || earSlotY == null) return out;
+
+    var dyShift = ySlotY - earSlotY;   // сдвиг Y1 → Y2
+
+    // 1) ── КОПИЯ фрагмента «полный R20 + касательная» (1:1 через translate по Y) ──
+    out.push('<g transform="translate(0,' + dyShift.toFixed(3) + ')">' +
+             '<path class="cut" d="' + earTanR20d + '"/></g>');
+
+        // 2) ── ПОЛУКРУГ R4 (центр на оси R4 = tSlotX, уже сдвинут ещё на 2) ──
+        var slotEdgeX = earGeom.tSlotX,          slotEdgeY = earGeom.tSlotY + dyShift; // край R4 = конец касательной
+    var r4Axis    = earGeom.tSlotX;          // ось R4 (со сдвигом +2)
+    var slotEndX  = r4Axis;                  // строго вертикальный диаметр
+    var slotEndY  = 2*ySlotY - slotEdgeY;
+    var sweepSlot = (dir < 0) ? 1 : 0;
+    out.push('<path class="cut" d="' + M(slotEdgeX, slotEdgeY) +
+             A(slotEndX, slotEndY, R4, sweepSlot) + '"/>');
+             var edgeX = earGeom.c20x + dir * R20;    // X крайней вершины R20
+
+// Вертикаль по крайним точкам R20: от центра R20 плеча до центра R20 копии.
+var topY = earGeom.mc20y;                // центр R20 плеча (верх)
+var botY = earGeom.c20y + dyShift;       // центр R20 копии (низ)
+
+out.push('<path class="cut" d="' + M(edgeX, topY) + Ln(edgeX, botY) + '"/>');
+
+return out;
+  }
+  function buildEar(axisX, dir, yBig, ySlot){
+    var EG = (profile === 'B') ? 6 : 0;   // сдвиг ВСЕГО уха внутрь короба
+    var R4_EXTRA = (profile === 'B') ? 2 : 0;  // доп. сдвиг R4 навстречу (ещё +2)
+    axisX = axisX - dir * EG;             // ось уха внутрь: лев(dir=-1)→+6, прав(dir=+1)→-6
+    var r4AxisX = axisX - dir * R4_EXTRA; // ось только для R4 — ещё на 2 внутрь
+    var earBig = ySlot - Y0;          // высота уха = весь ярус yEar (Y0..ySlot), а не h+1
+    var bigTopY = Y0;                 // вершина купола ровно на верху развёртки
+    // синяя биговка добавляется НИЖЕ (после расчёта касательной) — один раз, с обрезкой
+
+    // R110: вершина (север) на верху биговки, центр строго под ней
+    var bigCx = axisX, bigCy = bigTopY + R110;
+
+    // ── СЛОТТЕР R4: отдельная полуокружность ──
+    // центр лежит на горизонтальной биговке ySlot, смещён на R4 ВНУТРЬ (к телу) от осевой.
+    // dir = -1 (левое, наружу влево) → внутрь = вправо (+); dir = +1 → внутрь = влево (-)
+        // центр R4 лежит НА вертикальной биговке (axisX) и на R4 НИЖЕ горизонтальной биговки (ySlot)
+        var slotCx = axisX;              // на вертикальной биговке
+    var slotCy = ySlot + R4;         // на 4 мм ниже горизонтальной биговки
+
+    // Точка, куда должна прийти касательная = левая (для лев. уха) точка полукруга на биговке.
+    // Полукруг стоит на биговке ySlot, диаметр вдоль биговки: концы в (slotCx - dir*R4) и (slotCx + dir*R4).
+    // Наружный конец (ближе к куполу) = slotCx + dir*R4 = axisX  → ровно на осевой (пересечение биговок).
+            // R4: центр СТРОГО на пересечении биговок (axisX, ySlot), диаметр СТРОГО вертикальный.
+    // Верхний конец дуги = (axisX, ySlot - R4) → касательная приходит точно сюда,
+    // полукруг выпирает наружу горизонтально, зелёная линия по концам строго вертикальна.
+    var slotOuterX = r4AxisX;
+    var tSlotX = r4AxisX;           // верхний конец R4 (ось R4 сдвинута ещё на 2)
+    var tSlotY = ySlot - R4;        // ровно на R4 выше пересечения биговок
+    // единичный вектор вдоль касательной (снизу-вверх, наружу)
+    var tux = dir*Math.sin(ANG), tuy = -Math.cos(ANG);
+    // нормаль в сторону центра R20 (носик вверх-внутрь)
+    var nx = -dir*Math.cos(ANG), ny = -Math.sin(ANG);
+
+    // центр R20: от касательной по нормали, касается R110 ВНУТРЕННЕ
+    var baseX = tSlotX + nx*R20, baseY = tSlotY + ny*R20;
+    var ddx = baseX - bigCx, ddy = baseY - bigCy;
+    var Rt = R110 - R20;
+    var bq = 2*(ddx*tux + ddy*tuy);
+    var cq = ddx*ddx + ddy*ddy - Rt*Rt;
+    var disc = bq*bq - 4*cq; if (disc < 0) disc = 0;
+    var t1 = (-bq + Math.sqrt(disc))/2, t2 = (-bq - Math.sqrt(disc))/2;
+    var tsel = Math.max(t1, t2);
+    var c20x = baseX + tux*tsel, c20y = baseY + tuy*tsel;
+
+    // точка касания R20/касательная
+    var tanR20x = c20x - nx*R20, tanR20y = c20y - ny*R20;
+    // точка касания R110/R20
+    var vlen = Math.hypot(c20x - bigCx, c20y - bigCy) || 1;
+    var tR110x = bigCx + (c20x - bigCx)/vlen*R110;
+    var tR110y = bigCy + (c20y - bigCy)/vlen*R110;
+
+        // ── ОСНОВНОЙ КОНТУР УХА (БЕЗ R4): вершина → R110 → R20 → касательная до внешнего края R4 ──
+        var sweepBig = (dir < 0) ? 0 : 1;   // купол выпуклый наружу
+    var sweepR20 = (dir < 0) ? 0 : 0;   // носик
+    var d = M(axisX, bigTopY) +
+      A(tR110x, tR110y, R110, sweepBig) +
+      A(tanR20x, tanR20y, R20, sweepR20) +
+      Ln(tSlotX, tSlotY);               // касательная заканчивается на ВНЕШНЕМ крае R4
+    c.push('<path class="cut" d="'+d+'"/>');
+
+    // сохраняем ИМЕННО фрагмент «R20 + касательная» (без купола) для копии на ярус Y2.
+    // старт в точке касания R110/R20, дуга R20 → касательная до края R4.
+           // Фрагмент для копии на Y2: дуга R20 идёт ТОЛЬКО от крайней вершины (edgeX, c20y)
+    // до точки касания касательной (1/4 круга), затем касательная до края R4.
+    var edgeXe = c20x + dir * R20;      // X крайней вершины R20
+    earTanR20d = M(edgeXe, c20y) +
+      A(tanR20x, tanR20y, R20, sweepR20) +   // 1/4 R20 от носика до касания
+      Ln(tSlotX, tSlotY);
+    earSlotY = ySlot;   // Y-биговка уха (Y1)
+
+                // ── ПОЛУОКРУЖНОСТЬ R4 ──
+    // ЦЕНТР ровно на пересечении трёх биговок: (axisX, ySlot).
+    // Дуга R4 начинается ТОЧНО в конце касательной (tSlotX, tSlotY) — без зазора,
+    // и идёт полукругом (180°) вокруг центра до диаметрально противоположной точки.
+    var slotCenterX = r4AxisX, slotCenterY = ySlot;            // центр R4 (сдвинут ещё на 2)
+    // концы дуги строго по вертикали относительно оси R4
+    var slotEndX = r4AxisX;                                    // нижний конец строго под центром
+    var slotEndY = ySlot + R4;                                 // ровно на R4 ниже пересечения
+    // sweep: полукруг выпирает НАРУЖУ (для лев. уха dir=-1 → влево)
+    var sweepSlot = (dir < 0) ? 1 : 0;
+    var dSlot = M(tSlotX, tSlotY) + A(slotEndX, slotEndY, R4, sweepSlot);
+    c.push('<path class="cut" d="'+dSlot+'"/>');
+
+        // ── КЛАПАН-ПЛЕЧО: зеркало касательной + R20 относительно горизонтальной биговки ySlot ──
+    // ОТДЕЛЬНЫЙ элемент — пушим в shoulderPaths, а НЕ в c (чтобы не зеркалить вместе с ухом).
+    function mirY(y){ return 2*ySlot - y; }
+    var mTanR20x = tanR20x,        mTanR20y = mirY(tanR20y);   // точка касания R20/касательная (зеркало)
+    var mR110x   = tR110x,         mR110y   = mirY(tR110y);    // точка касания R110/R20 (зеркало)
+    var sweepR20m = (dir < 0) ? 0 : 1;   // носик наружу (при отражении по Y sweep инвертируется)
+    // крайняя (носиковая) точка R20 плеча = центр ± R20 по X, на высоте центра mc20y
+    var edgeXm    = c20x + dir * R20;    // X крайней вершины R20
+    var mc20yVal  = mirY(c20y);          // Y центра R20 плеча
+    // дуга идёт от касания касательной (mTanR20) ТОЛЬКО до крайней точки (edgeXm, mc20yVal) — 1/4 круга
+    var dShoulder = M(slotEndX, slotEndY) +
+      Ln(mTanR20x, mTanR20y) +                       // зеркальная касательная
+      A(edgeXm, mc20yVal, R20, sweepR20m);           // R20 обрывается на крайней вершине (носик срезан)
+    shoulderPaths.push('<path class="cut" d="'+dShoulder+'"/>');
+
+// синяя вертикальная биговка перегиба: верх на Y0, низ доведён до касательной (край слоттера R4)
+f.push(L(axisX, bigTopY, axisX, tSlotY, 'fold'));
+
+// сохраняем геометрию касательной+R20 этого (левого) уха для копии на ярусе Y2
+earGeom = {
+  tSlotX: tSlotX, tSlotY: tSlotY,       // край R4 (старт касательной)
+  tanR20x: tanR20x, tanR20y: tanR20y,   // касание R20/касательная
+  tR110x: tR110x, tR110y: tR110y,       // касание R20/купол
+  mR110x: mR110x, mR110y: mR110y,       // касание R20/купол клапана-плеча (зеркало)
+  mTanR20x: mTanR20x, mTanR20y: mTanR20y, // касание R20/касательная (зеркало)
+  c20x: c20x, c20y: c20y,               // ЦЕНТР дуги R20 копии — для расчёта крайней вершины
+  mc20y: mirY(c20y),                    // центр R20 плеча по Y (зеркало)
+  blueBotY: tSlotY,                     // Y обрезки синей биговки (край слоттера R4 = касательная)
+  ySlot: ySlot                          // Y-биговка уха (Y1)
+};
+}
+
+   // ============================================================
+  // ЦЕНТРАЛЬНЫЕ БИГОВКИ
+  // ============================================================
+    // биговка Y1 (вторая сверху) укорочена на 12мм с каждой стороны (профиль B)
+    var Y1_INSET = (profile === 'B') ? 12 : 0;
+  f.push(L(XbL + Y1_INSET, Y1, XbR - Y1_INSET, Y1, 'fold'));
+  var Y2_INSET = (profile === 'B') ? 12 : 0;
+  f.push(L(XbL + Y2_INSET, Y2, XbR - Y2_INSET, Y2, 'fold'));
+  // жёлтая биговка Y3 (базовая длина) укорочена на 3мм с боков → садится на вершины диагоналей
+  f.push(L(XbL + A1_INSET, Y3, XbR - A1_INSET, Y3, 'fold'));
+  // биговка основания Y4 удалена (фантомная линия #33AAFF)
+  // f.push(L(XbL, Y4, XbR, Y4, 'fold'));
+  // сквозные вертикальные биговки XbL/XbR (Y1..Y4) удалены —
+  // это была фантомная линия (в корел-экспорте класс .str2 #00D9FF),
+  // реальные вертикальные биговки строятся отдельно по ярусам
+  // f.push(L(XbL, Y1, XbL, Y4, 'fold'));
+  // f.push(L(XbR, Y1, XbR, Y4, 'fold'));
+
+  // ============================================================
+  // УШИ (Y0..Y1): купол наверху, слоттер на биговке Y1
+  // ============================================================
+        // Строим ТОЛЬКО левое ухо, правое получаем зеркальным отражением (правило 2).
+        var earStart = c.length;
+  buildEar(XbL, -1, Y0, Y1);   // левое ухо (+ левый клапан-плечо в shoulderPaths)
+  var earPaths = c.splice(earStart);          // вырезаем path'ы левого уха
+  // левое ухо — как есть
+  c.push('<g>' + earPaths.join('') + '</g>');
+  // правое ухо — зеркало левого относительно вертикали, проходящей через середину тела
+  var mirrorX = (XbL + XbR);                  // ось отражения: x' = mirrorX - x
+  c.push('<g transform="translate(' + mirrorX.toFixed(3) + ',0) scale(-1,1)">' +
+         earPaths.join('') + '</g>');
+
+  // ── КЛАПАНЫ-ПЛЕЧИ (отдельные элементы) ──
+  var shoulderLeft = shoulderPaths.slice();   // левый клапан-плечо (как построен)
+  c.push('<g>' + shoulderLeft.join('') + '</g>');
+  // правый клапан-плечо — зеркало левого относительно той же оси mirrorX
+  c.push('<g transform="translate(' + mirrorX.toFixed(3) + ',0) scale(-1,1)">' +
+         shoulderLeft.join('') + '</g>');
+                        // ── КОПИЯ фрагмента «R20+касательная» уха на ярус Y2 (1:1, форма не меняется) ──
+  // левая копия — как есть; правая — зеркало левой относительно mirrorX (как уши).
+  var slotEG = (profile === 'B') ? 6 : 0;
+  var slotLeft = slotR4(XbL + slotEG, Y2, -1);  // ось со сдвигом уха (внутрь на 6)
+  slotLeft.forEach(function(p){ c.push(p); });  // левая копия
+  // правая копия — зеркало левой той же осью mirrorX, что уши и клапаны-плечи
+  c.push('<g transform="translate(' + mirrorX.toFixed(3) + ',0) scale(-1,1)">' +
+         slotLeft.join('') + '</g>');
+
+    // Горизонтальный рез — на самом верху развёртки (Y0=0), ухо занимает весь ярус yEar
+        // Горизонтальный рез (синяя линия) — концы на сдвинутых внутрь осях ушей (±6)
+        (function(){
+    var earTop = Y0;
+    var EG = (profile === 'B') ? 6 : 0;              // ВОЗВРАЩЕНО: рез уха трогать не надо
+    c.push(L(XbL + EG, earTop, XbR - EG, earTop, 'cut'));
+  })();
+                                  // вертикальная биговка правого уха — ЗЕРКАЛО левой относительно mirrorX
+                                // левая биговка построена в buildEar на оси axisX = XbL + 6 (внутрь),
+                                // низ обрезан на earGeom.blueBotY (точка касания касательной).
+        var blueBotR = (earGeom && earGeom.blueBotY != null) ? earGeom.blueBotY : Y1;
+        var EGr = (profile === 'B') ? 6 : 0;
+        var axisXr = mirrorX - (XbL + EGr);   // зеркальная ось правой биговки
+        f.push(L(axisXr, Y0, axisXr, blueBotR, 'fold'));
+
+                      // ── вертикальные биговки яруса плеча (Y1..Y2), удлинены на 1мм с концов ──
+                      (function(){
+    var G = (profile === 'B') ? 12 : 0;   // сдвиг навстречу по 12 мм
+    var EXT = (profile === 'B') ? 0 : 0;  // удлинить на 1мм сверху и снизу
+    f.push(L(XbL + G, Y1 - EXT, XbL + G, Y2 + EXT, 'fold'));   // левая внутрь
+    f.push(L(XbR - G, Y1 - EXT, XbR - G, Y2 + EXT, 'fold'));   // правая внутрь
+  })();
+
+  var lockN = lockCount0427(w);
+  (function(){
+    var yt=Y2, yb=Y3;
+    var IN = (profile === 'B') ? 3 : 0;   // сдвиг биговок внутрь по 3 мм
+    var UP = (profile === 'B') ? 3 : 0;   // подъём ЗЕЛЁНЫХ линий вверх на 3 мм
+
+    var xLb = XbL + IN;   // левая биговка внутрь
+    var xRb = XbR - IN;   // правая биговка внутрь
+
+    var s1L=XbL-side1, ledL=s1L-LEDGE, s2L=ledL-side2;
+                        // ── ЗЕЛЁНЫЙ УГОЛОК у R4 (левый): удлинён внутрь на 12мм навстречу правому ──
+                        var GREEN_EXT = (profile === 'B') ? 12 : 0;
+    c.push(L(XbL - R4 + GREEN_EXT, Y2 + R4, s1L, Y2 + R4, 'cut'));   // горизонталь (внутр. конец +12)
+    var YEL_TRIM = (profile === 'B') ? 3 : 0;            // усечь жёлтый рез с внутр. стороны короба
+    c.push(L(s1L, Y2 + R4, s1L, Y3 - YEL_TRIM, 'cut'));  // вертикаль вниз, снизу усечена на 3мм
+            // ЗЕЛЁНАЯ линия (у Y3), поднята на 3 — целиком от s1L до XbL
+    c.push(L(s1L, yb - UP, XbL, yb - UP, 'cut'));
+    // ── ВНУТРЕННЯЯ ДИАГОНАЛЬ 3×3 (у тела, к сдвинутой биговке xLb=XbL+3) ──
+    c.push(L(XbL, yb - UP, xLb, yb - UP + 3, 'cut'));       // от конца линии к биговке, вниз на 3
+    c.push(L(xLb, yb - UP + 3, xLb, yb, 'cut'));            // вертикаль по биговке вниз до Y3
+        // биговка сдвинута внутрь на 3; верх укорочен на 4мм (вниз по чертежу)
+               // зелёная биговка КЛАПАНА (Y2..Y3) — верх укорочен на 4мм
+    var GREENTOP = (profile === 'B') ? 4 : 0;
+    f.push(L(xLb, yt + GREENTOP, xLb, yb, 'fold'));
+    var span=yb-yt, sw=6, sh=26;   // прорези замка перенесены в блок Y3..Y4 (на синюю биговку тела)
+      var s1R=XbR+side1;
+      // ── ЗЕЛЁНЫЙ УГОЛОК у R4 (правый): удлинён внутрь на 12мм навстречу левому ──
+        c.push(L(XbR + R4 - GREEN_EXT, Y2 + R4, s1R, Y2 + R4, 'cut'));   // горизонталь (внутр. конец −12)
+        c.push(L(s1R, Y2 + R4, s1R, Y3 - YEL_TRIM, 'cut'));  // вертикаль вниз, снизу усечена на 3мм
+            // ЗЕЛЁНАЯ линия (правая, у Y3), поднята на 3 — целиком от s1R до XbR
+    c.push(L(s1R, yb - UP, XbR, yb - UP, 'cut'));
+    // ── ВНУТРЕННЯЯ ДИАГОНАЛЬ 3×3 (у тела, к сдвинутой биговке xRb=XbR-3) ──
+    c.push(L(XbR, yb - UP, xRb, yb - UP + 3, 'cut'));       // от конца линии к биговке, вниз на 3
+    c.push(L(xRb, yb - UP + 3, xRb, yb, 'cut'));            // вертикаль по биговке вниз до Y3
+    
+        // зелёная биговка КЛАПАНА (правая, Y2..Y3) — верх укорочен на 4мм
+        f.push(L(xRb, yt + GREENTOP, xRb, yb, 'fold'));
+              // прорези замка перенесены в блок Y3..Y4 (на синюю биговку тела XbL/XbR)
+  })();
+
+        // ============================================================
+  // КЛАПАН ВЫСОТЫ + R7 + КЛЮЧИ (Y3..Y4)
+  // ============================================================
+  (function(){
+    var yt=Y3, yb=Y4;
+    var dirDown = -1;                          // «вниз по чертежу» = минус (проверено визуально)
+    var G  = (profile === 'B') ? 6 : 0;        // величина смещения (знак применяем ниже)
+    var GD = G * dirDown;                       // итоговый сдвиг вниз по чертежу
+
+    // ── уровни и высота замков (для разрыва реза грани s2 в зоне замка) ──
+    var lockN_gap = lockCount0427(w);
+    var lockH_gap = lockHeight0427(w);
+    var span_gap  = yb - yt;
+    // список интервалов [y1,y2], где реза быть НЕ должно (основание замка)
+    function lockGaps() {
+      var gaps = [];
+      for (var g = 0; g < lockN_gap; g++) {
+        var gy = yt + span_gap * (g + 1) / (lockN_gap + 1);
+        gaps.push([gy - lockH_gap/2, gy + lockH_gap/2]);
+      }
+      return gaps;
+    }
+    // рисует вертикаль x от ytop до ybot, ПРОПУСКАЯ зоны замков (gaps)
+    function cutVertWithGaps(x, ytop, ybot) {
+      if (profile !== 'B') { c.push(L(x, ytop, x, ybot, 'cut')); return; }
+      var gaps = lockGaps().slice().sort(function(a,b){return a[0]-b[0];});
+      var cur = ytop;
+      for (var gi = 0; gi < gaps.length; gi++) {
+        var g0 = gaps[gi][0], g1 = gaps[gi][1];
+        if (g1 <= ytop || g0 >= ybot) continue;      // разрыв вне линии
+        var top = Math.max(ytop, g0), bot = Math.min(ybot, g1);
+        if (top > cur) c.push(L(x, cur, x, top, 'cut'));   // сегмент до разрыва
+        cur = bot;                                          // перепрыгиваем разрыв
+      }
+      if (cur < ybot) c.push(L(x, cur, x, ybot, 'cut'));    // хвост после последнего разрыва
+    }
+
+                // ---------- ЛЕВАЯ СТОРОНА ----------
+                var s1L=XbL-side1, ledL=s1L-LEDGE, s2L=ledL-side2;
+    var TOPD = (profile === 'B') ? 1 : 0;   // верх полки опущен на 1мм
+    var BOTD = (profile === 'B') ? 3 : 0;   // низ полки опущен на 3мм
+    var R4c  = (profile === 'B') ? 4 : 0;   // радиус скругления углов полки у s1
+    var GUP  = (profile === 'B') ? 1 : 0;   // зелёная линия + нижний R подняты на 1мм
+    var GRUP = (profile === 'B') ? 3 : 0;   // доп. подъём ЗЕЛЁНОЙ горизонтали + дуг R4 на 3мм
+    var GREEN_BOT_TRIM = (profile === 'B') ? 3 : 0;   // укоротить зелёные вертик. биговки СНИЗУ на 3мм
+    var YEXT = (profile === 'B') ? 3 : 0;            // удлинение биговки тела вверх на 3мм
+    f.push(L(XbL, yt - YEXT, XbL, yb, 'fold'));      // жёлтая биговка тела (удлинена вверх)
+
+               // ── ВЕРХ полки (Y3): рез + R скругление у стыка s1 ──
+               c.push(L(s1L - R4c, yt + TOPD, s2L, yt + TOPD, 'cut'));
+    // ВЕРХНИЙ R: конец дуги уходит ВВЕРХ (yt - R4c) → вогнутость смотрит НАРУЖУ
+    if (R4c) c.push('<path class="cut" d="' + M(s1L - R4c, yt + TOPD) + A(s1L, yt + TOPD - R4c, R4c, 0) + '"/>');
+
+  // биговка стыка s1L: верх поднят на 1,5мм, низ удлинён вниз на 3мм
+  var S1TRIM = (profile === 'B') ? 1.5 : 0;
+    var S1UP = (profile === 'B') ? 1.5 : 0;          // подъём биговки вверх (вычитаем из Y)
+    var S1DOWN = (profile === 'B') ? 3 : 0;          // удлинение низа биговки вниз (прибавляем к Y)
+    f.push(L(s1L, yt + TOPD - (R4c?R4c:0) + S1TRIM - S1UP, s1L, (yb - GUP) + (R4c?R4c:0) - S1TRIM - S1UP + S1DOWN - GREEN_BOT_TRIM, 'fold'));
+
+    var A1TRIM = (profile === 'B') ? 1 : 0;          // голубая биговка A1 укорочена на 1мм с концов
+    f.push(L(ledL, yt + A1TRIM, ledL, yb - A1TRIM - GREEN_BOT_TRIM, 'fold'));   // A1, низ укорочен на 3мм
+
+        // ── НИЗ полки (Y4), поднят на 1мм (GUP): ЗЕЛЁНАЯ горизонталь + R скругление ──
+    // внешняя вертикаль s2L — С РАЗРЫВОМ на высоту замка (реза в зоне замка нет)
+    cutVertWithGaps(s2L, yt + TOPD, yb - GUP - GRUP);
+    c.push(L(s2L, yb - GUP - GRUP, s1L - R4c, yb - GUP - GRUP, 'cut'));   // зелёная нижняя (поднята ещё на 3)
+            // НИЖНИЙ R: поднят вместе с зелёной на GRUP
+    if (R4c) c.push('<path class="cut" d="' + M(s1L - R4c, yb - GUP - GRUP) + A(s1L, (yb - GUP - GRUP) + R4c, R4c, 1) + '"/>');
+
+    // синие диагонали 3×3 у стыка s1L — УДАЛЕНЫ
+    c.push(L(s1L, yb, XbL, yb, 'cut'));                        // низ полки к телу (Y4)
+
+        // ── ОТВЕТНЫЕ ЗАМКИ на КРАЙНЕЙ грани s2L (наружу) ──
+        var lockN_L = lockCount0427(w);
+    var lockH_L = lockHeight0427(w);         // основание замка (на линии реза s2L)
+    var keyOut = 5;                           // вылет замка наружу
+    var span_L = yb - yt;
+    for (var t = 0; t < lockN_L; t++) {
+      var ty = yt + span_L * (t + 1) / (lockN_L + 1);   // тот же уровень, что отверстия
+      var baseTop = ty - lockH_L / 2, baseBot = ty + lockH_L / 2;   // основание = lockH
+      var outTop  = ty - (lockH_L - 2) / 2, outBot = ty + (lockH_L - 2) / 2; // внешняя кромка −1мм с каждой стороны
+      c.push(L(s2L, baseTop, s2L - keyOut, outTop, 'cut'));         // верхний скос
+      c.push(L(s2L - keyOut, outTop, s2L - keyOut, outBot, 'cut')); // внешняя вертикаль (lockH−2)
+      c.push(L(s2L - keyOut, outBot, s2L, baseBot, 'cut'));         // нижний скос
+    }
+
+                // ---------- ПРАВАЯ СТОРОНА (зеркально) ----------
+                var s1R=XbR+side1, ledR=s1R+LEDGE, s2R=ledR+side2;
+                f.push(L(XbR, yt - YEXT, XbR, yb, 'fold'));      // жёлтая биговка тела (удлинена вверх)
+
+        // ── ВЕРХ полки (Y3): рез + R скругление у стыка s1 ──
+        c.push(L(s1R + R4c, yt + TOPD, s2R, yt + TOPD, 'cut'));
+    // ВЕРХНИЙ R (правый): конец дуги уходит ВВЕРХ (yt - R4c) → вогнутость НАРУЖУ
+    if (R4c) c.push('<path class="cut" d="' + M(s1R + R4c, yt + TOPD) + A(s1R, yt + TOPD - R4c, R4c, 1) + '"/>');
+
+           // ── ПРАВАЯ биговка стыка s1R (полка 10мм): верх поднят на 1,5мм, низ удлинён вниз на 3мм ──
+           f.push(L(s1R, yt + TOPD - (R4c?R4c:0) + S1TRIM - S1UP, s1R, (yb - GUP) + (R4c?R4c:0) - S1TRIM - S1UP + S1DOWN - GREEN_BOT_TRIM, 'fold'));
+
+           f.push(L(ledR, yt + A1TRIM, ledR, yb - A1TRIM - GREEN_BOT_TRIM, 'fold'));   // A1, низ укорочен на 3мм
+
+        // ── НИЗ полки (Y4), поднят на 1мм: ЗЕЛЁНАЯ горизонталь + R скругление ──
+    // внешняя вертикаль s2R — С РАЗРЫВОМ на высоту замка
+    cutVertWithGaps(s2R, yt + TOPD, yb - GUP - GRUP);
+    c.push(L(s2R, yb - GUP - GRUP, s1R + R4c, yb - GUP - GRUP, 'cut'));   // зелёная нижняя (поднята ещё на 3)
+            // НИЖНИЙ R (правый): поднят вместе с зелёной на GRUP
+    if (R4c) c.push('<path class="cut" d="' + M(s1R + R4c, yb - GUP - GRUP) + A(s1R, (yb - GUP - GRUP) + R4c, R4c, 0) + '"/>');
+
+    // синие диагонали 3×3 у стыка s1R — УДАЛЕНЫ
+    c.push(L(s1R, yb, XbR, yb, 'cut'));
+
+        // ── ОТВЕТНЫЕ ЗАМКИ на КРАЙНЕЙ грани s2R (наружу) ──
+        for (var tr = 0; tr < lockN_L; tr++) {
+      var tyr = yt + span_L * (tr + 1) / (lockN_L + 1);
+      var baseTopR = tyr - lockH_L / 2, baseBotR = tyr + lockH_L / 2;
+      var outTopR  = tyr - (lockH_L - 2) / 2, outBotR = tyr + (lockH_L - 2) / 2;
+      c.push(L(s2R, baseTopR, s2R + keyOut, outTopR, 'cut'));
+      c.push(L(s2R + keyOut, outTopR, s2R + keyOut, outBotR, 'cut'));
+      c.push(L(s2R + keyOut, outBotR, s2R, baseBotR, 'cut'));
+    }
+
+                // ── ОТВЕРСТИЯ под замки на СИНЕЙ биговке тела (XbL/XbR) ──
+    // высота отверстия = высота замка + 0.5мм с каждой стороны (напр. 45 → 46)
+    var lockN2 = lockCount0427(w);
+    var lockH2 = lockHeight0427(w);          // = основание замка
+    var holeH  = lockH2 + 1;                 // +0.5 сверху и снизу
+    var span2  = yb - yt;
+    var holeW  = (profile === 'B') ? 10 : 10;   // ширина отверстия (щель) = 10мм
+    var holeR  = 2;                              // радиус скругления углов R2
+    var HOLE_SHIFT = (profile === 'B') ? 5 : 0;  // сдвиг отверстий НАВСТРЕЧУ друг другу на 5мм
+
+    // защита: радиус не больше половины меньшей стороны
+    var rr = Math.min(holeR, holeW/2, holeH/2);
+
+    // рисует прямоугольник со скруглёнными углами R=rr (центр cx,cy; ширина w0; высота h0)
+    function roundRectHole(cx, cy, w0, h0, r) {
+      var x0 = cx - w0/2, x1 = cx + w0/2;
+      var y0 = cy - h0/2, y1 = cy + h0/2;
+      // по часовой: старт верх-лево (после скругления), верх → право → низ → лево
+      var d =
+        M(x0 + r, y0) +
+        Ln(x1 - r, y0) + A(x1, y0 + r, r, 1) +   // верх-правый угол
+        Ln(x1, y1 - r) + A(x1 - r, y1, r, 1) +   // низ-правый угол
+        Ln(x0 + r, y1) + A(x0, y1 - r, r, 1) +   // низ-левый угол
+        Ln(x0, y0 + r) + A(x0 + r, y0, r, 1) +   // верх-левый угол
+        'Z';
+      return '<path class="cut" d="' + d + '"/>';
+    }
+
+    // уровни центров — те же, что у ответных замков
+    lockLevels0427 = [];
+    for (var hi = 0; hi < lockN2; hi++) {
+      lockLevels0427.push(yt + span2 * (hi + 1) / (lockN2 + 1));
+    }
+        // левая биговка XbL — сдвиг ВПРАВО (к центру, +HOLE_SHIFT)
+        for (var li = 0; li < lockN2; li++) {
+      var lcy = lockLevels0427[li];
+      c.push(roundRectHole(XbL + HOLE_SHIFT, lcy, holeW, holeH, rr));
+    }
+    // правая биговка XbR — сдвиг ВЛЕВО (к центру, -HOLE_SHIFT)
+    for (var ri = 0; ri < lockN2; ri++) {
+      var rcy = lockLevels0427[ri];
+      c.push(roundRectHole(XbR - HOLE_SHIFT, rcy, holeW, holeH, rr));
+    }
+    // ── сохраняем X-края отверстий для размерной линии 307 ──
+    // 307 = от ЛЕВОГО края левого отверстия до ПРАВОГО края правого отверстия
+    holeLeftX  = (XbL + HOLE_SHIFT) - holeW / 2;   // левый край левого отверстия
+    holeRightX = (XbR - HOLE_SHIFT) + holeW / 2;   // правый край правого отверстия
+  })();
+     // ============================================================
+  // НИЖНИЙ КЛАПАН (Y4..Y5)
+  // ============================================================
+  (function(){
+    var yt=Y4, yb=Y5;
+    var IN = (profile === 'B') ? 6 : 0;   // ЖЁЛТЫЕ биговки внутрь на 6мм (было 3, +3)
+    var UP = (profile === 'B') ? 3 : 0;   // высота диагонали по Y = 3 (не меняем)
+
+    var xL = XbL + IN, xR = XbR - IN;      // xL/xR сдвинуты на 6 → зелёная (xL..xR) короче на 6 с каждой стороны
+    var yTop = yt - UP;
+    var yBot = yb - UP;                 // нижняя линия поднята на 3 вверх
+
+    var s1L = XbL - side1;   // биговка полки слева (наружу)
+    var s1R = XbR + side1;   // биговка полки справа (наружу)
+    // боковые линии нижнего клапана (ЖЁЛТЫЕ) — БИГОВКА (fold)
+    f.push(L(xL, yTop, xL, yBot, 'fold'));
+    f.push(L(xR, yTop, xR, yBot, 'fold'));
+
+    // ── ВЕРХНИЕ ДИАГОНАЛИ 3×6 (X=6 от IN, Y=3 от UP) у Y4 ──
+    c.push(L(XbL, Y4, xL, yTop, 'cut'));   // ΔX = IN = 6, ΔY = UP = 3
+    c.push(L(XbR, Y4, xR, yTop, 'cut'));
+
+    // ── НИЖНИЕ ДИАГОНАЛИ УДАЛЕНЫ (по правке) ──
+    // (было: xL,yb → XbL,yb-UP и xR,yb → XbR,yb-UP)
+
+    // ── от вершины боковой биговки ГОРИЗОНТАЛЬНО наружу до s1 (полка на всю ширину) ──
+    c.push(L(xL, yBot, s1L, yBot, 'cut'));   // левая полка
+    c.push(L(xR, yBot, s1R, yBot, 'cut'));   // правая полка
+
+                        // ── от конца полки линия ВВЕРХ (к Y4), сверху усечена на 3мм (внутр. сторона короба) ──
+        var YEL_TRIM_B = (profile === 'B') ? 0 : 0;
+    c.push(L(s1L, yBot, s1L, yt + YEL_TRIM_B, 'cut'));    // левая вверх, верх усечён на 3мм
+    c.push(L(s1R, yBot, s1R, yt + YEL_TRIM_B, 'cut'));    // правая вверх, верх усечён на 3мм
+
+    // нижний рез клапана — между боковыми биговками (xL..xR), на поднятом уровне
+    c.push(L(xL, yBot, xR, yBot, 'cut'));
+
+    // ── ЗЕЛЁНАЯ БИГОВКА #1AFF00 — от вершины левой диагонали до вершины правой (на yTop) ──
+    c.push('<path class="foldgreen" d="' + M(xL, yTop) + Ln(xR, yTop) + '"/>');
+  })();
+
+       // ============================================================
+  // РАЗМЕРЫ
+  // ============================================================
+  var dims='';
+  if(withDims){
+    var base=Math.max(totalW,totalH),fs=base*0.016*1.65,off=base*0.05,arr=off*0.28;
+
+    // ── текст размера с БЕЛОЙ ПОДЛОЖКОЙ, ПО ЦЕНТРУ линии ──
+    // rot: 0 — горизонтальный, -90 — вертикальный
+    function dimLabel(cx, cy, txt, rot){
+      var str = String(txt);
+      var padX = fs*0.32, padY = fs*0.30;
+      var bw = str.length * fs*0.58 + padX*2;   // ширина подложки ≈ по числу символов
+      var bh = fs + padY*2;                     // высота подложки чуть больше цифр
+      var g = '<g';
+      if (rot === -90) g += ' transform="rotate(-90 '+cx+' '+cy+')"';
+      g += '>';
+      g += '<rect class="dimbg" x="'+(cx-bw/2)+'" y="'+(cy-bh/2)+'" width="'+bw+'" height="'+bh+'" rx="'+(fs*0.15)+'"/>';
+      g += '<text class="dimtxt" style="font-size:'+fs+'px" x="'+cx+'" y="'+cy+'" text-anchor="middle" dominant-baseline="central">'+str+'</text>';
+      g += '</g>';
+      return g;
+    }
+
+    // ── горизонтальный размер (стрелки внутрь), цифры по центру линии ──
+    function hDimIn(x1,x2,yLine,txt){
+      var s=L(x1,yLine,x2,yLine,'dim');
+      s+=arrowTri(x1,yLine,0,arr)+arrowTri(x2,yLine,180,arr);
+      s+=dimLabel((x1+x2)/2, yLine, txt, 0);
+      return s;
+    }
+    // ── горизонтальный размер (стрелки наружу) ──
+    function hDimOut(x1,x2,yLine,txt){
+      var s=L(x1,yLine,x2,yLine,'dim');
+      s+=arrowTri(x1,yLine,180,arr)+arrowTri(x2,yLine,0,arr);
+      s+=dimLabel((x1+x2)/2, yLine, txt, 0);
+      return s;
+    }
+    // ── вертикальный размер (стрелки внутрь), цифры по центру линии ──
+    function vDimIn(x,y1,y2,txt){
+      var s=L(x,y1,x,y2,'dim');
+      s+=arrowTri(x,y1,-90,arr)+arrowTri(x,y2,90,arr);
+      s+=dimLabel(x,(y1+y2)/2,txt,-90);
+      return s;
+    }
+
+    // ── 1) ВЕРХНЯЯ ДЛИНА (внутренняя высота l+3) на ярусе плеча ──
+    var topDimY = Y2 - off*0.6;
+    dims += hDimIn(XbL, XbR, topDimY, Math.round(l + 3));
+
+    // ── 2) ДЛИНА ПО РИЛЁВКАМ (body) между Y2 и Y3 ──
+    var dyBody = (Y2 + Y3)/2;
+    dims += hDimIn(XbL, XbR, dyBody, Math.round(body));
+
+    // ── 3) ДЛИНА ПО ОТВЕРСТИЯМ (307) — от края левого до края правого ──
+    if (holeLeftX != null && holeRightX != null) {
+      var dyHole = Y3 + off*0.6;
+      dims += hDimIn(holeLeftX, holeRightX, dyHole, Math.round(holeRightX - holeLeftX));
+    }
+
+    // ── ВЕРТИКАЛЬНЫЕ ЯРУСЫ (82,208,83…) — ВНУТРИ короба, по центру тела ──
+    var dxIn = (XbL + XbR)/2;
+    var ys=[{a:Y0,b:Y1,t:yEar},{a:Y1,b:Y2,t:yShldr},{a:Y2,b:Y3,t:yBody},{a:Y3,b:Y4,t:yHgt},{a:Y4,b:Y5,t:yBot}];
+    for(var k=0;k<ys.length;k++){
+      var m=ys[k];
+      dims += vDimIn(dxIn, m.a, m.b, Math.round(m.t));
+    }
+
+    // ── ОБЩАЯ ВЫСОТА (крайняя справа) ──
+    var dxTot = totalW + off*1.2;
+    dims += vDimIn(dxTot, Y0, Y5, Math.round(totalH));
+
+    // ── ОБЩАЯ ДЛИНА (снизу) ──
+    var dyTot = Y5 + off*1.2;
+    dims += hDimOut(0, totalW, dyTot, Math.round(totalW));
+  }
+
+    // ВЕКТОР (withDims=false): margin=0, viewBox === width/height → масштаб СТРОГО 1:1 (мм в мм).
+  // Любой margin при экспорте раздувает viewBox и Corel сжимает чертёж → дробные размеры.
+  var vbX, vbY, vbW, vbH;
+  if (withDims) {
+    // 1) базовый прямоугольник чертежа + небольшой равномерный запас под размеры
+    var pad = Math.max(totalW, totalH) * 0.10;   // поля вокруг чертежа
+    var drawW = totalW + pad * 2;
+    var drawH = totalH + pad * 2;
+    var drawX = -pad;
+    var drawY = -pad;
+
+        // 2) подгоняем ПРОПОРЦИИ viewBox под РЕАЛЬНЫЕ пропорции области #preview
+    //    (с учётом padding). Тогда meet впишет чертёж по обеим осям одинаково крупно.
+    var boxAR = 1450 / 800;                       // запасное значение
+    try {
+      var pv = document.getElementById('preview');
+      if (pv) {
+        var cs = getComputedStyle(pv);
+        var padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+        var padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+        var innerW = pv.clientWidth  - padX;
+        var innerH = pv.clientHeight - padY;
+        if (innerW > 0 && innerH > 0) boxAR = innerW / innerH;
+      }
+    } catch(e) {}
+    var drawAR = drawW / drawH;
+
+    if (drawAR < boxAR) {
+      // чертёж «уже» окна → добавляем ширину симметрично
+      var newW = drawH * boxAR;
+      drawX -= (newW - drawW) / 2;
+      drawW  = newW;
+    } else {
+      // чертёж «шире» окна → добавляем высоту симметрично
+      var newH = drawW / boxAR;
+      drawY -= (newH - drawH) / 2;
+      drawH  = newH;
+    }
+
+    vbX = drawX; vbY = drawY; vbW = drawW; vbH = drawH;
+  } else {
+    // ВЕКТОР (экспорт): строго 1:1, без полей — не трогаем
+    vbX = 0; vbY = 0; vbW = totalW; vbH = totalH;
+  }
+  var vb = vbX+' '+vbY+' '+vbW+' '+vbH;
+  var sizeAttr=withDims?'':'width="'+totalW+'mm" height="'+totalH+'mm"';
+  var cls=withDims?'class="drawing"':'';
+  var boost=forPDF?PDF_LINE_BOOST:1.25;
+  var cutSW=CUT_SW*boost,dimSW=DIM_SW*boost;
+  var dashArr=forPDF?(4*boost)+' '+(2*boost):'4 2';
+  var vecEff=forPDF?'':'vector-effect:non-scaling-stroke;';
+
+  return '<svg xmlns="http://www.w3.org/2000/svg" '+cls+' viewBox="'+vb+'" '+sizeAttr+' preserveAspectRatio="xMidYMid meet">'+
+    '<style>'+
+    // РЕЗ — чёрный, сплошной
+    '.cut{stroke:#000000;stroke-width:'+cutSW+';fill:none;'+vecEff+'}'+
+    // БИГОВКИ — красные, сплошные (пунктир убран)
+    '.fold{stroke:#cc0000;stroke-width:'+cutSW+';fill:none;'+vecEff+'}'+
+    // ЗЕЛЁНАЯ биговка теперь красная и сплошная
+    '.foldgreen{stroke:#cc0000;stroke-width:'+cutSW+';fill:none;'+vecEff+'}'+
+    '.dim{stroke:#4FBEFF;stroke-width:'+dimSW+';stroke-linecap:round;'+vecEff+'}'+
+    '.dimarr-tri{fill:#4FBEFF;stroke:none;}'+
+    '.dimtxt{font-family:Arial,sans-serif;font-weight:bold;fill:#4FBEFF;}'+
+    '.dimbg{fill:#FFFFFF;stroke:none;}'+
+    '</style>'+c.join('')+f.join('')+dims+'</svg>';
+}
+
   function previewBox() {
     var v = readBC(); if (!v) return;
-    var d = calc0201(v.l, v.w, v.h, v.profile);
-    var svg = buildSVG0201(d, true);
+    var svg = buildDrawing(calcSel.value, v, true, false);
     document.getElementById('preview').innerHTML = svg;
   }
 
   function generateBox() {
     var v = readBC(); if (!v) return;
-    var d = calc0201(v.l, v.w, v.h, v.profile);
-    var svg = buildSVG0201(d, false);
+    var svg = buildDrawing(calcSel.value, v, false, false);
     var blob = new Blob([svg], { type: "image/svg+xml" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -1168,9 +1870,8 @@ body[data-theme="eye"] {
   function generatePDF() {
     var v = readBC(); if (!v) return;
 
-    var dPdf = calc0201(v.l, v.w, v.h, v.profile);
-    // SVG чертежа с УСИЛЕННЫМИ линиями для PDF
-    var svgString = buildSVG0201(dPdf, true, true);
+        // SVG чертежа с УСИЛЕННЫМИ линиями для PDF
+        var svgString = buildDrawing(calcSel.value, v, true, true);
 
     var tmp = document.createElement('div');
     tmp.innerHTML = svgString;
@@ -1386,11 +2087,13 @@ body[data-theme="eye"] {
   });
   calcSel.value = '0201';
     // Кнопки предпросмотра/вектора/PDF доступны только для 0201
+        // Конструкции, для которых доступны предпросмотр/вектор/PDF
+        var PREVIEW_READY = ['0201', '0427'];
     function updatePreviewButtons() {
-      var only0201 = (calcSel.value === '0201');
+      var ready = PREVIEW_READY.indexOf(calcSel.value) !== -1;
     ['btnPreview','btnDownload','btnPDF'].forEach(function (id) {
       var b = document.getElementById(id);
-      if (b) b.disabled = !only0201;
+      if (b) b.disabled = !ready;
     });
   }
   calcSel.addEventListener('change', updatePreviewButtons);
