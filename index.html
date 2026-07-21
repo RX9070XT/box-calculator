@@ -5140,18 +5140,8 @@ if (open) {
     try { localStorage.setItem('sabos_theme', name); } catch (e) {}
   }
 
-  // клики по кнопкам тем
-  Array.prototype.forEach.call(document.querySelectorAll('.theme-btn'), function (b) {
-    b.addEventListener('click', function () {
-      applyTheme(b.getAttribute('data-set'));
-    });
-  });
-
-  // восстановить тему из памяти (по умолчанию — светлая)
-  var savedTheme = 'light';
-  try { savedTheme = localStorage.getItem('sabos_theme') || 'light'; } catch (e) {}
-  if (savedTheme === 'eye') savedTheme = 'light';   // тема «для глаз» временно отключена
-  applyTheme(savedTheme);
+    // Тема ВСЕГДА светлая (переключатель убран)
+    applyTheme('light');
   // предзагрузка тёмных вариантов кнопок (_2.png) при старте — чтобы не мигали при disabled
   ['preview_2.png','count_2.png','download_2.png','pdf_2.png'].forEach(function (src) {
     var im = new Image();
