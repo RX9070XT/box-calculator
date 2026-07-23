@@ -4809,7 +4809,7 @@ html += '</div>'; // /res-block паллет
     var coefTbl = (['0201','0200','0203','0216'].indexOf(construction) !== -1)
       ? { 'E':4,'B':6.5,'C':8.2,'BC':16,'EB':8.2 }
       : (construction.charAt(1) === '4'
-          ? { 'E':1.8,'B':3.2,'C':4.2,'BC':6,'EB':5 } : null);
+          ? { 'E':1.6,'B':3.2,'C':4.2,'BC':6,'EB':5 } : null);
     var coef = coefTbl ? coefTbl[profile] : null;
 
     html += f('Высота паллета = кратность × коэф. + 150мм поддон');
