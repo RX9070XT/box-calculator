@@ -384,8 +384,8 @@ body[data-theme="eye"] {
     position: absolute; left: 0; top: calc(100% + 4px); z-index: 9999;
     width: 100%; box-sizing: border-box; max-height: 133px; overflow-y: auto;   /* 5 строк без скролла, дальше скролл */
     border: 1px solid #ccc; border-radius: 8px; padding: 4px;   /* симметричный отступ со всех сторон */
-    background: rgba(255,255,255,0.35);
-    -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+    background: rgba(255,255,255,0.215);
+    -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px);
     box-shadow: 0 8px 24px rgba(0,0,0,0.18); display: none;
   }
   /* ── тонкий кастомный скроллбар, вписанный в скругление ── */
@@ -3010,7 +3010,8 @@ var D8_LINE_Y = HAS ? (PP.D8_LINE_Y || 0) : 0;   // сдвиг горизонт�
                 // линия реза от ВЕРХНЕГО конца дуги д8 (обращён к клапану) до зелёной вертикали
                 c.push(L(_xTL, _yvTL - R4c, _xOutL, _yvTL - R4c, 'cut'));   // верх лев
               } else {
-        c.push('<path class="cut" d="' + M(s1L - R4c, yt + TOPD + TOP_DROP + 0) + A(s1L, yt + TOPD + TOP_DROP - R4c + 1, R4c, 0) + '"/>');
+        var _r4dyTL = (profile === 'E') ? 1 : 0;   // E: верхняя р4 вниз на 1мм
+        c.push('<path class="cut" d="' + M(s1L - R4c, yt + TOPD + TOP_DROP + 0 + _r4dyTL) + A(s1L, yt + TOPD + TOP_DROP - R4c + _r4dyTL, R4c, 0) + '"/>');
       }
     }
 
@@ -3030,7 +3031,8 @@ c.push(L(s2L, yb - GUP - GRUP - D8_HLINE_Y, s1L - R4c, yb - GUP - GRUP - D8_HLIN
                 // линия реза от НИЖНЕГО конца дуги д8 (обращён к клапану) до зелёной вертикали
                 c.push(L(_xBL, _yvBL + R4c, _xOutL, _yvBL + R4c, 'cut'));
               } else {
-        c.push('<path class="cut" d="' + M(s1L - R4c, yb - GUP - GRUP - 0) + A(s1L, (yb - GUP - GRUP) + R4c - 1, R4c, 1) + '"/>');
+        var _r4dyBL = (profile === 'E') ? 1 : 0;   // E: нижняя р4 вверх на 1мм
+        c.push('<path class="cut" d="' + M(s1L - R4c, yb - GUP - GRUP - 0 - _r4dyBL) + A(s1L, (yb - GUP - GRUP) + R4c - _r4dyBL, R4c, 1) + '"/>');
       }
     }
 
@@ -3061,11 +3063,12 @@ c.push(L(s2L, yb - GUP - GRUP - D8_HLINE_Y, s1L - R4c, yb - GUP - GRUP - D8_HLIN
                 // линия реза от ВЕРХНЕГО конца дуги д8 (обращён к клапану) до зелёной вертикали
                 c.push(L(_xTR, _yvTR - R4c, _xOutR, _yvTR - R4c, 'cut'));
               } else {
-        c.push('<path class="cut" d="' + M(s1R + R4c, yt + TOPD + TOP_DROP + 0) + A(s1R, yt + TOPD + TOP_DROP - R4c + 1, R4c, 1) + '"/>');
+        var _r4dyTR = (profile === 'E') ? 1 : 0;   // E: верхняя р4 вниз на 1мм
+        c.push('<path class="cut" d="' + M(s1R + R4c, yt + TOPD + TOP_DROP + 0 + _r4dyTR) + A(s1R, yt + TOPD + TOP_DROP - R4c + _r4dyTR, R4c, 1) + '"/>');
       }
     }
 
-    shelfFold(s1R, yt + TOPD + TOP_DROP - (R4c?R4c:0) + S1TRIM - S1UP + D8_HLINE_Y, (yb - GUP) + (R4c?R4c:0) - S1TRIM - S1UP + S1DOWN - GREEN_BOT_TRIM - D8_HLINE_Y);
+    shelfFold(s1R, yt + TOPD + TOP_DROP - (R4c?R4c:0) + S1TRIM - S1UP + D8_HLINE_Y,(yb - GUP) + (R4c?R4c:0) - S1TRIM - S1UP + S1DOWN - GREEN_BOT_TRIM - D8_HLINE_Y);
     shelfFold(ledR, yt + A1TRIM + TOP_DROP + D8_HLINE_Y, yb - A1TRIM - GREEN_BOT_TRIM - D8_HLINE_Y);   // A1
 
     cutVertWithGaps(s2R, yt + TOPD + TOP_DROP + D8_HLINE_Y, yb - GUP - GRUP - D8_HLINE_Y);
@@ -3078,7 +3081,8 @@ c.push(L(s2L, yb - GUP - GRUP - D8_HLINE_Y, s1L - R4c, yb - GUP - GRUP - D8_HLIN
                 // линия реза от НИЖНЕГО конца дуги д8 (обращён к клапану) до зелёной вертикали
                 c.push(L(_xBR, _yvBR + R4c, _xOutR, _yvBR + R4c, 'cut'));
               } else {
-        c.push('<path class="cut" d="' + M(s1R + R4c, yb - GUP - GRUP - 0) + A(s1R, (yb - GUP - GRUP) + R4c - 1, R4c, 0) + '"/>');
+        var _r4dyBR = (profile === 'E') ? 1 : 0;   // E: нижняя р4 вверх на 1мм
+        c.push('<path class="cut" d="' + M(s1R + R4c, yb - GUP - GRUP - 0 - _r4dyBR) + A(s1R, (yb - GUP - GRUP) + R4c - _r4dyBR, R4c, 0) + '"/>');
       }
     }
 
