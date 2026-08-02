@@ -5236,7 +5236,11 @@ var PASTED_IMG_DATA = null;    // dataURL вставленного PNG (для �
 
 function previewIsEmpty() {
   var pv = document.getElementById('preview');
-  return pv && pv.innerHTML.trim() === '';
+  if (!pv) return false;
+  // #faceLabel — служебная подпись, не считается содержимым чертежа
+  if (pv.querySelector('svg')) return false;   // построен чертёж
+  if (pv.querySelector('img')) return false;   // вставлена картинка
+  return true;                                  // ничего, кроме faceLabel → пусто
 }
 
 // Показать вставленную картинку в #preview + войти в режим вставки
@@ -6956,16 +6960,15 @@ if (open) {
     im.src = src;
   });
 
-  // ── ГАРАНТИРОВАННЫЙ показ плейсхолдера add_here.png при старте ──
-  // (в самом конце IIFE — если что-то выше упало, сюда всё равно дойдём при отсутствии throw)
-  (function () {
-    var hint = document.getElementById('previewHint');
-    var pv = document.getElementById('preview');
-    if (hint && pv) {
-      if (ADD_HERE_B64 && hint.getAttribute('src') !== ADD_HERE_B64) hint.src = ADD_HERE_B64;
-      hint.style.display = (pv.innerHTML.trim() === '') ? '' : 'none';
-    }
-  })();
+       // ── ГАРАНТИРОВАННЫЙ показ плейсхолдера add_here.png при старте ──
+       (function () {
+      var hint = document.getElementById('previewHint');
+      if (hint && ADD_HERE_B64 && hint.getAttribute('src') !== ADD_HERE_B64) {
+        hint.src = ADD_HERE_B64;
+      }
+      // syncPreviewHint() сам решает: показать плейсхолдер (пусто) или скрыть (svg/img)
+      if (typeof syncPreviewHint === 'function') syncPreviewHint();
+    })();
 })();
 </script>
 </body>
