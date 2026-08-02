@@ -309,22 +309,6 @@ body[data-theme="eye"] {
     backface-visibility: hidden;
     transform-origin: center;
   }
-
-    /* «Лицо печати» — правый верхний угол ПОЛЯ #preview, только 0711.
-     Внутри #preview, но в PDF/вектор НЕ попадает: экспорт берёт только <svg>. */
-      #faceLabel {
-    position: absolute;
-    top: 16px; right: 18px;
-    z-index: 700;
-    display: none;
-    font-family: 'TT Hoves', Arial, sans-serif;
-    font-weight: normal;
-    font-size: 18px;
-    color: #000;
-    pointer-events: none;
-    -webkit-user-select: none; user-select: none;
-    white-space: nowrap;
-  }
   
      /* Плейсхолдер «add_here.png» — по центру пустого поля чертежа */
   #previewHint {
@@ -942,18 +926,6 @@ body[data-theme="eye"] {
                       <option value="-">-</option>
                       <option value="800x1200">800x1200</option>
                       <option value="1000x1200">1000x1200</option>
-                      <option value="800x1800">800x1800</option>
-                      <option value="800x2000">800x2000</option>
-                      <option value="800x2400">800x2400</option>
-                      <option value="800x3000">800x3000</option>
-                      <option value="1000x1600">1000x1600</option>
-                      <option value="1000x2400">1000x2400</option>
-                      <option value="1000x3200">1000x3200</option>
-                      <option value="1200x1300">1200x1300</option>
-                      <option value="1200x1600">1200x1600</option>
-                      <option value="1200x2000">1200x2000</option>
-                      <option value="1200x3200">1200x3200</option>
-                      <option value="1300x2400">1300x2400</option>
                     </select>
                   </div>
                   <div class="input-group"><label>Кратность</label><input type="number" id="palPerStack" placeholder="шт"></div>
@@ -1058,18 +1030,17 @@ body[data-theme="eye"] {
         
                   <div class="preview-area" style="position:relative;">
                     <button type="button" id="btnColorSwap" title="Переключить цвет линий"
-                    style="position:absolute;top:28px;left:8px;z-index:600;display:none;
-                           width:28px;height:28px;padding:0;box-sizing:border-box;
-                           font-size:13px;line-height:1;background:rgba(85,90,102,0.85);
-                           color:#fff;border:none;border-radius:6px;cursor:pointer;
-                           align-items:center;justify-content:center;"></button>
-
+                    style="position:absolute;top:28px;left:8px;z-index:600;width:auto;display:none;
+                           padding:5px 12px;font-size:13px;background:rgba(85,90,102,0.85);
+                           color:#fff;border:none;border-radius:6px;cursor:pointer;">
+                    1
+                  </button>
                   <img id="previewHint" alt="Перетащите или вставьте чертёж">
                   <div class="rotate-btns" id="rotateBtns">
                     <button type="button" class="rotate-btn" id="btnRotCCW" title="Против часовой">&#8634;</button>
                     <button type="button" class="rotate-btn" id="btnRotCW"  title="По часовой">&#8635;</button>
                   </div>
-                  <div id="preview"><div id="faceLabel">Лицо печати</div></div>
+                  <div id="preview"></div>
                   <div class="btn-grid">
                       <button id="btnClear" class="img-btn" title="Очистить">
                         <img class="img-normal" src="toclear.png" alt="Очистить">
@@ -1170,37 +1141,8 @@ var SLOT_W = 8;
 // Расчёты справа от чертежа показываются ТОЛЬКО после «Предпросмотр» при включённом тогле.
 // Пересчёт значений при штампе/поддоне обновляет уже показанный блок, но сам НЕ включает его.
 var CALC_SHOWN = false;
-// Когда true — рамку штампа рисует buildLayoutSVG (общую вокруг тиража),
-// а отдельные копии строятся без рамки. Объявляем ДО первого использования.
-var SUPPRESS_STAMP_FRAME = false;
-function stampActive(forPDF, withDims) {
-    if (SUPPRESS_STAMP_FRAME) return false;         // тиражирование → рамку рисует buildLayoutSVG
-    if (!withDims) return false;                    // экспорт-вектор — без рамки
-    if (forPDF) return false;                       // PDF — без рамки
-    var el = document.getElementById('toggleStamp');
-    return !!(el && el.checked);
-  }
-    // true → размеры рисуются ВНУТРИ развёртки (штамп ВКЛ или выбрана раскладка).
-  // Только для 0711 и 02ХХ (0200/0201/0203) — вызывается из их builder'ов.
-  function dimsInside() {
-    var st = document.getElementById('toggleStamp');
-    var ls = document.getElementById('layoutStamp');
-    var stampOn = !!(st && st.checked);
-    var layoutOn = !!(ls && ls.value && ls.value !== '-');
-    return stampOn || layoutOn;
-  }
-
-  // true → «Чертеж на штамп» ВКЛ (только 0201): слоттеры R4 + разрыв биговок.
-  function drawStampActive() {
-    var el = document.getElementById('toggleDrawStamp');
-    if (!el || !el.checked) return false;
-    var cs = document.getElementById('bcConstruction');
-    return !!(cs && cs.value === '0201');
-  }
-
-       // Режим цвета линий для группы 02ХХ: false = серый (#454545), true = как в 04ХХ
-    // По умолчанию ВКЛючена цветная тема (true).
-    var COLOR_SWAP_02 = true;
+    // Режим цвета линий для группы 02ХХ: false = серый (#454545), true = как в 04ХХ
+    var COLOR_SWAP_02 = false;
     // Возвращает цвета/стиль линий для 02ХХ в зависимости от флага.
   // foldDash = true → биговка пунктиром; false → сплошная (как в 04ХХ).
   function colors02() {
@@ -1413,34 +1355,11 @@ function stampActive(forPDF, withDims) {
 
     // Подгоняет viewBox под пропорции поля #preview (та же логика, что в 0427/0422/0409) —
   // чертёж занимает максимум места и по ширине, и по высоте.
-  function fitViewBox(tW, tH, extraR, extraB, forPDF, withDims) {
+  function fitViewBox(tW, tH, extraR, extraB) {
     var pad = Math.max(tW, tH) * 0.04;
     var drawX = -pad, drawY = -pad;
     var drawW = tW + extraR + pad * 2;
     var drawH = tH + extraB + pad * 2;
-        // ── штамп: viewBox центрируется СТРОГО по рамке штампа (заготовке).
-    //    Размерные линии могут торчать за рамку — их учитываем по РАЗМЕРУ, но
-    //    расширяем область СИММЕТРИЧНО относительно центра рамки, чтобы рамка
-    //    осталась в центре и по горизонтали, и по вертикали. ──
-    if (stampActive(forPDF, withDims)) {
-      var b = stampBox(tW, tH);
-      var sp = Math.max(b.fw, b.fh) * 0.10;   // запас под подписи/зазор рамки
-      // центр рамки штампа
-      var fcx = b.fx + b.fw / 2;
-      var fcy = b.fy + b.fh / 2;
-      // максимальный «вылет» контента (чертёж+размеры) и рамки от центра рамки
-      var halfW = Math.max(
-        fcx - drawX, (drawX + drawW) - fcx,          // выступ чертежа/размеров по X
-        b.fw / 2 + sp                                // рамка + запас
-      );
-      var halfH = Math.max(
-        fcy - drawY, (drawY + drawH) - fcy,          // выступ чертежа/размеров по Y
-        b.fh / 2 + sp                                // рамка + запас
-      );
-      // симметричная область вокруг центра рамки → рамка строго в центре
-      drawX = fcx - halfW; drawW = halfW * 2;
-      drawY = fcy - halfH; drawH = halfH * 2;
-    }
     var boxAR = 1450 / 800;
     try {
       var pv = document.getElementById('preview');
@@ -1458,74 +1377,6 @@ function stampActive(forPDF, withDims) {
     return drawX + ' ' + drawY + ' ' + drawW + ' ' + drawH;
   }
 
-    // Цвет рамки/цифр штампа: чёрный, если линии в ТЁМНОМ (сером) режиме; иначе зелёный.
-    function stampFrameColor() {
-    var cs = document.getElementById('bcConstruction');
-    var c = cs ? cs.value : '';
-    var is02 = (c === '0200' || c === '0201' || c === '0203' || c === '0711');
-    var is04 = (c === '0409' || c === '0410' || c === '0422' || c === '0427' || c === '0452');
-    // тёмный (серый) режим линий: 02ХХ при COLOR_SWAP_02=false, 04ХХ при COLOR_SWAP_04=true
-    var darkLines = (is02 && !COLOR_SWAP_02) || (is04 && COLOR_SWAP_04);
-    return darkLines ? '#000000' : '#09AD32';
-  }
-     // ── ГАБАРИТ «Заготовки на штамп» в системе координат чертежа ──
-  // Чертёж лежит в 0..totalW × 0..totalH. Рамка = чертёж+20, но не меньше 500×600
-  // (длинная сторона листа = 600, короткая = 500). Центрирована по чертежу.
-  // Возвращает прямоугольник {fx,fy,fw,fh}. НИЧЕГО не рисует.
-  function stampBox(totalW, totalH) {
-    var PAD = 10;
-    var frameW = totalW + PAD * 2;
-    var frameH = totalH + PAD * 2;
-    var STAMP_LONG = 600, STAMP_SHORT = 500;
-    if (frameW >= frameH) {
-      if (frameW < STAMP_LONG)  frameW = STAMP_LONG;
-      if (frameH < STAMP_SHORT) frameH = STAMP_SHORT;
-    } else {
-      if (frameH < STAMP_LONG)  frameH = STAMP_LONG;
-      if (frameW < STAMP_SHORT) frameW = STAMP_SHORT;
-    }
-    return {
-      fx: (totalW - frameW) / 2,   // левый край рамки (может быть < 0)
-      fy: (totalH - frameH) / 2,   // верхний край рамки
-      fw: frameW,
-      fh: frameH
-    };
-  }
-
-  // ── РАМКА «Заготовка на штамп» + подписи размеров (только предпросмотр) ──
-  function stampFrameRect(totalW, totalH, forPDF, withDims) {
-    if (!stampActive(forPDF, withDims)) return '';
-    var b = stampBox(totalW, totalH);
-    var sw = 1.5;                                    // толщина рамки: ФИКС в экранных px (non-scaling-stroke)
-    var frameCol = stampFrameColor();
-    var out = '<rect data-stampframe="1" x="' + b.fx.toFixed(3) + '" y="' + b.fy.toFixed(3) +
-      '" width="' + b.fw.toFixed(3) + '" height="' + b.fh.toFixed(3) +
-      '" fill="none" stroke="' + frameCol + '" stroke-width="' + sw.toFixed(3) +
-      '" vector-effect="non-scaling-stroke" />';
-
-    // ── подписи размеров заготовки: сверху (ширина рамки) и слева (высота рамки) ──
-    var base = Math.max(b.fw, b.fh);
-    var fs   = base * 0.024;                         // размер шрифта подписей рамки
-    var off  = base * 0.028;                         // отступ подписи от рамки
-    var col  = '#09AD32';
-    function lbl(cx, cy, txt, rot) {
-      var str = String(Math.round(txt));
-      var g = '<g';
-      if (rot === -90) g += ' transform="rotate(-90 ' + cx.toFixed(3) + ' ' + cy.toFixed(3) + ')"';
-      g += '>';
-      g += '<text x="' + cx.toFixed(3) + '" y="' + cy.toFixed(3) +
-           '" text-anchor="middle" dominant-baseline="central" ' +
-           'style="font-family:Arial,sans-serif;font-weight:bold;font-size:' + fs.toFixed(3) +
-           'px;fill:' + col + ';">' + str + '</text></g>';
-      return g;
-    }
-    // СВЕРХУ по центру рамки — ширина заготовки (fw)
-    out += lbl(b.fx + b.fw / 2, b.fy - off, b.fw, 0);
-    // СЛЕВА по центру рамки — высота заготовки (fh), вертикально
-    out += lbl(b.fx - off, b.fy + b.fh / 2, b.fh, -90);
-    return out;
-  }
-
   function buildSVG(d, withDims, forPDF) {
     var GLUE = d.GLUE;
     var flapH = d.flapH, wallH = d.wallH, totalH = d.totalH, panels = d.panels, totalW = d.totalW, slantRise = d.slantRise;
@@ -1534,7 +1385,6 @@ function stampActive(forPDF, withDims) {
     for (var p = 0; p < panels.length; p++) xs.push(xs[xs.length - 1] + panels[p]);
     var last = panels.length;
     var cut = [], fold = [];
-    var ccFold07 = [];   // биговочные штрихи A6/C6 (в чёрном режиме не рисуются)
 
     cut.push(L(GLUE, y1, 0, y1 + slantRise, 'cut'));
     cut.push(L(0, y1 + slantRise, 0, y2 - slantRise, 'cut'));
@@ -1589,11 +1439,6 @@ function stampActive(forPDF, withDims) {
       return xs[i + 1] - SLOT_W / 2;
     }
 
-        // ── флаги режима «Чертеж на штамп» (0201): объявлены ДО циклов клапанов ──
-        var STAMP07 = drawStampActive();      // R4 + разрыв биговок (как 0711)
-    var R4_UP07bs = 2, R4_DOWN07bs = 2;   // смещения полукругов
-    var HW02bs = SLOT_W / 2;              // полуширина слота
-
     var i, xL, xR;
     for (i = 0; i < panels.length; i++) {
       xL = flapLeft(i); xR = flapRight(i);
@@ -1602,39 +1447,11 @@ function stampActive(forPDF, withDims) {
     }
     for (i = 0; i < panels.length; i++) {
       xL = flapLeft(i); xR = flapRight(i);
-      // при штампе стыковые (слоттерные) стороны укорачиваем к полукругам R4
-      var yTopL = (STAMP07 && i > 0)          ? (y1 - R4_UP07bs)   : y1;   // верх-лев
-      var yTopR = (STAMP07 && i < last - 1)   ? (y1 - R4_UP07bs)   : y1;   // верх-прав
-      var yBotL = (STAMP07 && i > 0)          ? (y2 + R4_DOWN07bs) : y2;   // низ-лев
-      var yBotR = (STAMP07 && i < last - 1)   ? (y2 + R4_DOWN07bs) : y2;   // низ-прав
-      cut.push(L(xL, y0, xL, yTopL, 'cut'));
-      cut.push(L(xR, y0, xR, yTopR, 'cut'));
-      cut.push(L(xL, yBotL, xL, y3, 'cut'));
-      cut.push(L(xR, yBotR, xR, y3, 'cut'));
+      cut.push(L(xL, y0, xL, y1, 'cut'));
+      cut.push(L(xR, y0, xR, y1, 'cut'));
+      cut.push(L(xL, y2, xL, y3, 'cut'));
+      cut.push(L(xR, y2, xR, y3, 'cut'));
     }
-
-               // ── ЗАМЫКАНИЕ СЛОТОВ: обычно рез, при «Чертеж на штамп» (0201) — полукруги R4 ──
-    for (i = 1; i < panels.length; i++) {
-      var scBs = xs[i];   // стык панелей = центр слота
-      if (STAMP07) {
-        var yTopBs = y1 - R4_UP07bs;    // верхний полукруг чуть выше y1
-        var yBotBs = y2 + R4_DOWN07bs;  // нижний полукруг чуть ниже y2
-        // верхний полукруг, выпуклостью вниз (sweep=0)
-        cut.push('<path class="cut" d="M' +
-          (scBs - HW02bs).toFixed(3) + ' ' + yTopBs.toFixed(3) +
-          ' A' + HW02bs.toFixed(3) + ' ' + HW02bs.toFixed(3) + ' 0 0 0 ' +
-          (scBs + HW02bs).toFixed(3) + ' ' + yTopBs.toFixed(3) + '" />');
-        // нижний полукруг, выпуклостью вверх (sweep=1)
-        cut.push('<path class="cut" d="M' +
-          (scBs - HW02bs).toFixed(3) + ' ' + yBotBs.toFixed(3) +
-          ' A' + HW02bs.toFixed(3) + ' ' + HW02bs.toFixed(3) + ' 0 0 1 ' +
-          (scBs + HW02bs).toFixed(3) + ' ' + yBotBs.toFixed(3) + '" />');
-      } else {
-        cut.push(L(scBs - HW02bs, y1, scBs + HW02bs, y1, 'cut'));   // верхний слоттер (рез)
-        cut.push(L(scBs - HW02bs, y2, scBs + HW02bs, y2, 'cut'));   // нижний слоттер (рез)
-      }
-    }
-
     if (isHalf) {
       // правый край половинки — сплошная прямая линия от верха до низа
       cut.push(L(xs[last], y0, xs[last], y3, 'cut'));
@@ -1642,30 +1459,9 @@ function stampActive(forPDF, withDims) {
       cut.push(L(xs[last], y1, xs[last], y2, 'cut'));
     }
 
-    if (STAMP07) {
-      // ── биговки y1/y2 с РАЗРЫВАМИ в зонах слоттеров (как 0711) ──
-      var gapsBs = [];
-      for (i = 1; i < panels.length; i++) gapsBs.push([xs[i] - HW02bs, xs[i] + HW02bs]);
-      gapsBs.sort(function (a, b) { return a[0] - b[0]; });
-      function foldHGapsBs(yLine) {
-        var cur = GLUE;
-        for (var g = 0; g < gapsBs.length; g++) {
-          if (gapsBs[g][1] <= cur) continue;
-          if (gapsBs[g][0] > cur) fold.push(L(cur, yLine, gapsBs[g][0], yLine, 'fold'));
-          cur = gapsBs[g][1];
-        }
-        if (cur < totalW) fold.push(L(cur, yLine, totalW, yLine, 'fold'));
-      }
-      foldHGapsBs(y1);
-      foldHGapsBs(y2);
-      // вертикальные сгибы стенок укорачиваем сверху/снизу к полукругам
-      for (i = 1; i < panels.length; i++)
-        fold.push(L(xs[i], y1 + R4_UP07bs, xs[i], y2 - R4_DOWN07bs, 'fold'));
-    } else {
-      fold.push(L(GLUE, y1, totalW, y1, 'fold'));
-      fold.push(L(GLUE, y2, totalW, y2, 'fold'));
-      for (i = 1; i < panels.length; i++) fold.push(L(xs[i], y1, xs[i], y2, 'fold'));
-    }
+    fold.push(L(GLUE, y1, totalW, y1, 'fold'));
+    fold.push(L(GLUE, y2, totalW, y2, 'fold'));
+    for (i = 1; i < panels.length; i++) fold.push(L(xs[i], y1, xs[i], y2, 'fold'));
     fold.push(L(GLUE, y1, GLUE, y2, 'fold'));
 
     var dims = '';
@@ -1691,84 +1487,56 @@ function stampActive(forPDF, withDims) {
         return g;
       }
 
+      // ===== ГОРИЗОНТАЛЬНЫЕ РАЗМЕРЫ СЕКЦИЙ (под чертежом) =====
+      var dimY = y3 + off;
       var xMarks = [0, GLUE];
       for (var xi = 1; xi <= panels.length; xi++) xMarks.push(xs[xi]);
       var labels = [GLUE];
       for (var li = 0; li < panels.length; li++) labels.push(panels[li]);
-      var yMarks = [{ a: y0, b: y1, label: flapH }, { a: y1, b: y2, label: wallH }, { a: y2, b: y3, label: flapH }];
-
-      if (dimsInside()) {
-        // ═══ ВНУТРИ (штамп/раскладка) ═══
-        var dimYseg = y1 + (y2 - y1) * 0.46;
-        var dimYtot = y1 + (y2 - y1) * 0.66;
-        for (i = 1; i < xMarks.length - 1; i++) {
-          var a = xMarks[i], b = xMarks[i + 1], mid = (a + b) / 2;
-          var isFirst = (i === 1), isLast = (i === xMarks.length - 2);
-          dims += L(a, dimYseg, b, dimYseg, 'dim');
-          dims += arrowTri(a, dimYseg, isFirst ? 180 : 0, arrLen);
-          dims += arrowTri(b, dimYseg, isLast ? 0 : 180, arrLen);
-          dims += dimLabel(mid, dimYseg, labels[i], 0);
-        }
-        dims += L(0, dimYtot, totalW, dimYtot, 'dim');
-        dims += arrowTri(0, dimYtot, 180, arrLen);
-        dims += arrowTri(totalW, dimYtot, 0, arrLen);
-        dims += dimLabel(totalW / 2, dimYtot, totalW, 0);
-
-        var dimXin = xs[1] + (xs[2] - xs[1]) * 0.70;
-        for (var k = 0; k < yMarks.length; k++) {
-          var m = yMarks[k], midv = (m.a + m.b) / 2;
-          var isTop = (k === 0), isBot = (k === yMarks.length - 1);
-          dims += L(dimXin, m.a, dimXin, m.b, 'dim');
-          dims += arrowTri(dimXin, m.a, isTop ? -90 : 90, arrLen);
-          dims += arrowTri(dimXin, m.b, isBot ? 90 : -90, arrLen);
-          dims += dimLabel(dimXin, midv, m.label, -90);
-        }
-        var totXin = xs[1] + (xs[2] - xs[1]) * 1.75, midYin = totalH / 2;
-        dims += L(totXin, y0, totXin, y3, 'dim');
-        dims += arrowTri(totXin, y0, -90, arrLen);
-        dims += arrowTri(totXin, y3, 90, arrLen);
-        dims += dimLabel(totXin, midYin, totalH, -90);
-
-      } else {
-        // ═══ СНАРУЖИ (обычный режим, как было) ═══
-        var dimY = y3 + off;
-        for (i = 1; i < xMarks.length - 1; i++) {
-          var a2 = xMarks[i], b2 = xMarks[i + 1], mid2 = (a2 + b2) / 2;
-          var isFirst2 = (i === 1), isLast2 = (i === xMarks.length - 2);
-          dims += L(a2, dimY, b2, dimY, 'dim');
-          dims += L(a2, dimY - extTick, a2, dimY + tick, 'dim');
-          dims += L(b2, dimY - extTick, b2, dimY + tick, 'dim');
-          dims += arrowTri(a2, dimY, isFirst2 ? 180 : 0, arrLen);
-          dims += arrowTri(b2, dimY, isLast2 ? 0 : 180, arrLen);
-          dims += dimLabel(mid2, dimY, labels[i], 0);
-        }
-        var totY = dimY + off;
-        dims += L(0, totY, totalW, totY, 'dim');
-        dims += arrowTri(0, totY, 180, arrLen);
-        dims += arrowTri(totalW, totY, 0, arrLen);
-        dims += L(0, dimY - extTick, 0, totY + tick, 'dim');
-        dims += L(totalW, totY - extTick, totalW, totY + tick, 'dim');
-        dims += dimLabel(totalW / 2, totY, totalW, 0);
-
-        var dimX = totalW + off;
-        for (var k2 = 0; k2 < yMarks.length; k2++) {
-          var m2 = yMarks[k2], midv2 = (m2.a + m2.b) / 2;
-          var isTop2 = (k2 === 0), isBot2 = (k2 === yMarks.length - 1);
-          dims += L(dimX, m2.a, dimX, m2.b, 'dim');
-          dims += L(dimX - extTick, m2.a, dimX + tick, m2.a, 'dim');
-          dims += L(dimX - extTick, m2.b, dimX + tick, m2.b, 'dim');
-          dims += arrowTri(dimX, m2.a, isTop2 ? -90 : 90, arrLen);
-          dims += arrowTri(dimX, m2.b, isBot2 ? 90 : -90, arrLen);
-          dims += dimLabel(dimX, midv2, m2.label, -90);
-        }
-        var totX = dimX + off, midY = totalH / 2;
-        dims += L(totX, y0, totX, y3, 'dim');
-        dims += arrowTri(totX, y0, -90, arrLen);
-        dims += arrowTri(totX, y3, 90, arrLen);
-        dims += L(totX - extTick, y0, totX + tick, y0, 'dim');
-        dims += L(totX - extTick, y3, totX + tick, y3, 'dim');
-        dims += dimLabel(totX, midY, totalH, -90);
+      for (i = 1; i < xMarks.length - 1; i++) {
+        var a = xMarks[i], b = xMarks[i + 1], mid = (a + b) / 2;
+        var isFirst = (i === 1);
+        var isLast = (i === xMarks.length - 2);
+        dims += L(a, dimY, b, dimY, 'dim');
+        dims += L(a, dimY - extTick, a, dimY + tick, 'dim');
+        dims += L(b, dimY - extTick, b, dimY + tick, 'dim');
+        dims += arrowTri(a, dimY, isFirst ? 180 : 0, arrLen);
+        dims += arrowTri(b, dimY, isLast ? 0 : 180, arrLen);
+        dims += dimLabel(mid, dimY, labels[i], 0);
       }
+      // ===== ОБЩАЯ ШИРИНА =====
+      var totY = dimY + off;
+      dims += L(0, totY, totalW, totY, 'dim');
+      dims += arrowTri(0, totY, 180, arrLen);
+      dims += arrowTri(totalW, totY, 0, arrLen);
+      dims += L(0, dimY - extTick, 0, totY + tick, 'dim');
+      dims += L(totalW, totY - extTick, totalW, totY + tick, 'dim');
+      dims += dimLabel(totalW / 2, totY, totalW, 0);
+
+      // ===== ВЕРТИКАЛЬНЫЕ РАЗМЕРЫ СЕКЦИЙ (справа от чертежа) =====
+      var dimX = totalW + off;
+      var yMarks = [{ a: y0, b: y1, label: flapH }, { a: y1, b: y2, label: wallH }, { a: y2, b: y3, label: flapH }];
+      for (var k = 0; k < yMarks.length; k++) {
+        var m = yMarks[k];
+        var midv = (m.a + m.b) / 2;
+        var isTop = (k === 0);
+        var isBot = (k === yMarks.length - 1);
+        dims += L(dimX, m.a, dimX, m.b, 'dim');
+        dims += L(dimX - extTick, m.a, dimX + tick, m.a, 'dim');
+        dims += L(dimX - extTick, m.b, dimX + tick, m.b, 'dim');
+        dims += arrowTri(dimX, m.a, isTop ? -90 : 90, arrLen);
+        dims += arrowTri(dimX, m.b, isBot ? 90 : -90, arrLen);
+        dims += dimLabel(dimX, midv, m.label, -90);
+      }
+
+      // ===== ОБЩАЯ ВЫСОТА =====
+      var totX = dimX + off, midY = totalH / 2;
+      dims += L(totX, y0, totX, y3, 'dim');
+      dims += arrowTri(totX, y0, -90, arrLen);
+      dims += arrowTri(totX, y3, 90, arrLen);
+      dims += L(totX - extTick, y0, totX + tick, y0, 'dim');
+      dims += L(totX - extTick, y3, totX + tick, y3, 'dim');
+      dims += dimLabel(totX, midY, totalH, -90);
     }
     // значок гофры — жёстко в нижнем правом углу последней панели.
     // Всё считается в долях от iconSize → при любых габаритах положение в углу одинаковое.
@@ -1785,7 +1553,7 @@ function stampActive(forPDF, withDims) {
     var vb;
     if (withDims) {
       var extra = Math.max(totalW, totalH) * 0.14;   // запас под размерные линии справа/снизу
-      vb = fitViewBox(totalW, totalH, extra, extra, forPDF, withDims);
+      vb = fitViewBox(totalW, totalH, extra, extra);
     } else {
       vb = '0 0 ' + totalW + ' ' + totalH;   // экспорт: строго 1:1
     }
@@ -1809,8 +1577,7 @@ function stampActive(forPDF, withDims) {
       '.dimarr-tri{fill:' + c02.dim + ';stroke:none;}' +
       '.dimtxt{font-family:Arial,sans-serif;font-weight:bold;fill:' + c02.dim + ';}' +
       '.dimbg{fill:#FFFFFF;stroke:none;}' +
-      '</style>' + cut.join('') + fold.join('') + dims + corrIcon +
-      stampFrameRect(totalW, totalH, forPDF, withDims) + '</svg>';
+      '</style>' + cut.join('') + fold.join('') + dims + corrIcon + '</svg>';
   }
   // Обёртка: строит 0201 из одной или двух половин.
   function buildSVG0201(d, withDims, forPDF) {
@@ -1848,11 +1615,10 @@ function stampActive(forPDF, withDims) {
 
     var cut = [], fold = [];
 
-        // ── ПЕРВАЯ ПОЛОВИНА (с клеевым клапаном слева)
-        cut.push(L(GLUE, y1, 0, y1 + slantRise, 'cut'));
+    // ── ПЕРВАЯ ПОЛОВИНА (с клеевым клапаном слева и штриховкой) ──
+    cut.push(L(GLUE, y1, 0, y1 + slantRise, 'cut'));
     cut.push(L(0, y1 + slantRise, 0, y2 - slantRise, 'cut'));
     cut.push(L(0, y2 - slantRise, GLUE, y2, 'cut'));
-    // штриховка ЛЕВОГО клеевого клапана (первая половина) — была пропущена
     cut = cut.concat(hatchGlue(GLUE, y1, y2, slantRise));
 
     var firstXs = [GLUE, xs[1], xs[2]];
@@ -1873,8 +1639,8 @@ function stampActive(forPDF, withDims) {
     // штриховка клапана 2 (зеркальная: идёт вправо-вниз)
     cut = cut.concat(hatchGlueMirror(gl2L, gl2R, y1, y2, slantRise));
 
-            // ── СТЫК половин: только линия сгиба ──
-            fold.push(L(firstEnd, y1, firstEnd, y2, 'fold'));
+    // ── СТЫК: только ОДНА линия сгиба (двойных резов больше нет) ──
+    fold.push(L(firstEnd, y1, firstEnd, y2, 'fold'));
 
     // замыкающая прямая правого края второй половины
     cut.push(L(x2End, y0, x2End, y3, 'cut'));
@@ -1975,7 +1741,7 @@ function stampActive(forPDF, withDims) {
     if (withDims) {
       var extraR = Math.max(totalW2, totalH) * 0.14;
       var extraB = Math.max(totalW2, totalH) * 0.21;   // снизу ТРИ ряда размеров (секции/половина/общая)
-      vb = fitViewBox(totalW2, totalH, extraR, extraB, forPDF, withDims);
+      vb = fitViewBox(totalW2, totalH, extraR, extraB);
     } else {
       vb = '0 0 ' + totalW2 + ' ' + totalH;
     }
@@ -1997,11 +1763,10 @@ function stampActive(forPDF, withDims) {
       '.dimarr-tri{fill:' + c02.dim + ';stroke:none;}' +
       '.dimtxt{font-family:Arial,sans-serif;font-weight:bold;fill:' + c02.dim + ';}' +
       '.dimbg{fill:#FFFFFF;stroke:none;}' +
-      '</style>' + cut.join('') + fold.join('') + dims + corrIcon +
-      stampFrameRect(totalW2, totalH, forPDF, withDims) + '</svg>';
+      '</style>' + cut.join('') + fold.join('') + dims + corrIcon + '</svg>';
   }
 
-    // ====== РАСЧЁТ 0203(копия 0201, но flapH = первая панель panels[0]) ======
+    // ====== РАСЧЁТ 0203 (копия 0201, но flapH = первая панель panels[0]) ======
   // Высота верхних и нижних клапанов = ширина ПЕРВОЙ панели после клеевого клапана.
   //   Для B: panels[0] = w+2  →  flapH = w+2 (а не (w+4)/2 как в 0201).
   function calc0203(l, w, h, profileKey) {
@@ -2041,32 +1806,6 @@ function stampActive(forPDF, withDims) {
     return half;
   }
 
-        // 0711 = 0200-подобная развёртка (только ВЕРХНИЕ клапаны).
-  // Порядок панелей слева направо: L, W, L, W с ЯВНЫМИ припусками по профилю.
-  // Профиль B (эталон): L+3, W+3, L+3, W+2.
-  function calc0711(l, w, h, profileKey) {
-    var full = calc(l, w, h, profileKey);
-    // ── Припуски панелей 0711 по профилю: [dL1, dW1, dL2, dW2] ──
-    //   слева направо: L+dL1, W+dW1, L+dL2, W+dW2
-    var P0711_ADD = {
-      'E':  { dL1: 2, dW1: 2, dL2: 2, dW2: 1 },
-      'B':  { dL1: 3, dW1: 3, dL2: 3, dW2: 2 },
-      'C':  { dL1: 4, dW1: 4, dL2: 4, dW2: 2 },
-      'BC': { dL1: 6, dW1: 6, dL2: 6, dW2: 4 },
-      'EB': { dL1: 5, dW1: 5, dL2: 5, dW2: 3 }
-    };
-    var a = P0711_ADD[profileKey] || P0711_ADD['B'];
-    // панели: L+dL1, W+dW1, L+dL2, W+dW2 (порядок L,W,L,W)
-    full.panels = [l + a.dL1, w + a.dW1, l + a.dL2, w + a.dW2];
-    full.twoHalves = false;   // деление на половины пока не поддержано
-    full.lIn = l;             // исходные размеры для построения дна 0711
-    full.wIn = w;
-    full.hIn = h;
-        // пересчитать общую ширину под новые панели 0711
-        var bodyW0711 = full.panels.reduce(function (s, v) { return s + v; }, 0);
-    full.totalW = full.GLUE + bodyW0711;
-    return full;
-  }
   
 
   function buildSVG0200(d, withDims, forPDF) {
@@ -2108,12 +1847,6 @@ function stampActive(forPDF, withDims) {
       cut.push(L(xL, y3, xR, y3, 'cut'));           // низ клапана
       cut.push(L(xL, y2, xL, y3, 'cut'));           // левый рез клапана
       cut.push(L(xR, y2, xR, y3, 'cut'));           // правый рез клапана
-    }
-        // ── ЗАМЫКАНИЕ СЛОТОВ горизонтальным РЕЗОМ (для нижних слоттеров линия реза сверху, на y2) ──
-        var HW02 = SLOT_W / 2;
-    for (i = 1; i < panels.length; i++) {
-      var sc02 = xs[i];   // стык панелей = центр слота
-      cut.push(L(sc02 - HW02, y2, sc02 + HW02, y2, 'cut'));
     }
 
     // правый край стенки
@@ -2162,92 +1895,58 @@ function stampActive(forPDF, withDims) {
         return g;
       }
 
+      // горизонтальные секции
+      var dimY = y3 + off;
       var xMarks = [0, GLUE];
       for (var xi = 1; xi <= panels.length; xi++) xMarks.push(xs[xi]);
       var labels = [GLUE];
       for (var li = 0; li < panels.length; li++) labels.push(panels[li]);
-      var yMarks = [{ a: y1, b: y2, label: wallH }, { a: y2, b: y3, label: flapH }];
-
-      if (dimsInside()) {
-        // ═══ ВНУТРИ (штамп/раскладка) ═══
-        // ── ГОРИЗОНТАЛЬНЫЕ внутри стенки ──
-        var dimYseg = y1 + (y2 - y1) * 0.46;
-        var dimYtot = y1 + (y2 - y1) * 0.66;
-        for (i = 1; i < xMarks.length - 1; i++) {
-          var a = xMarks[i], b = xMarks[i + 1], mid = (a + b) / 2;
-          var isFirst = (i === 1), isLast = (i === xMarks.length - 2);
-          dims += L(a, dimYseg, b, dimYseg, 'dim');
-          dims += arrowTri(a, dimYseg, isFirst ? 180 : 0, arrLen);
-          dims += arrowTri(b, dimYseg, isLast ? 0 : 180, arrLen);
-          dims += dimLabel(mid, dimYseg, labels[i], 0);
-        }
-        dims += L(0, dimYtot, totalW, dimYtot, 'dim');
-        dims += arrowTri(0, dimYtot, 180, arrLen);
-        dims += arrowTri(totalW, dimYtot, 0, arrLen);
-        dims += dimLabel(totalW / 2, dimYtot, totalW, 0);
-
-        // ── ВЕРТИКАЛЬНЫЕ внутри первой панели ──
-        var dimXin = xs[1] + (xs[2] - xs[1]) * 0.70;
-        for (var k = 0; k < yMarks.length; k++) {
-          var m = yMarks[k], midv = (m.a + m.b) / 2;
-          var isTop = (k === 0), isBot = (k === yMarks.length - 1);
-          dims += L(dimXin, m.a, dimXin, m.b, 'dim');
-          dims += arrowTri(dimXin, m.a, isTop ? -90 : 90, arrLen);
-          dims += arrowTri(dimXin, m.b, isBot ? 90 : -90, arrLen);
-          dims += dimLabel(dimXin, midv, m.label, -90);
-        }
-        var totXin = xs[1] + (xs[2] - xs[1]) * 1.75, midYin = totalH / 2;
-        dims += L(totXin, y1, totXin, y3, 'dim');
-        dims += arrowTri(totXin, y1, -90, arrLen);
-        dims += arrowTri(totXin, y3, 90, arrLen);
-        dims += dimLabel(totXin, midYin, totalH, -90);
-
-      } else {
-        // ═══ СНАРУЖИ (обычный режим) ═══
-        var dimY = y3 + off;
-        for (i = 1; i < xMarks.length - 1; i++) {
-          var a2 = xMarks[i], b2 = xMarks[i + 1], mid2 = (a2 + b2) / 2;
-          var isFirst2 = (i === 1), isLast2 = (i === xMarks.length - 2);
-          dims += L(a2, dimY, b2, dimY, 'dim');
-          dims += L(a2, dimY - extTick, a2, dimY + tick, 'dim');
-          dims += L(b2, dimY - extTick, b2, dimY + tick, 'dim');
-          dims += arrowTri(a2, dimY, isFirst2 ? 180 : 0, arrLen);
-          dims += arrowTri(b2, dimY, isLast2 ? 0 : 180, arrLen);
-          dims += dimLabel(mid2, dimY, labels[i], 0);
-        }
-        var totY = dimY + off;
-        dims += L(0, totY, totalW, totY, 'dim');
-        dims += arrowTri(0, totY, 180, arrLen);
-        dims += arrowTri(totalW, totY, 0, arrLen);
-        dims += L(0, dimY - extTick, 0, totY + tick, 'dim');
-        dims += L(totalW, totY - extTick, totalW, totY + tick, 'dim');
-        dims += dimLabel(totalW / 2, totY, totalW, 0);
-
-        var dimX = totalW + off;
-        for (var k2 = 0; k2 < yMarks.length; k2++) {
-          var m2 = yMarks[k2], midv2 = (m2.a + m2.b) / 2;
-          var isTop2 = (k2 === 0), isBot2 = (k2 === yMarks.length - 1);
-          dims += L(dimX, m2.a, dimX, m2.b, 'dim');
-          dims += L(dimX - extTick, m2.a, dimX + tick, m2.a, 'dim');
-          dims += L(dimX - extTick, m2.b, dimX + tick, m2.b, 'dim');
-          dims += arrowTri(dimX, m2.a, isTop2 ? -90 : 90, arrLen);
-          dims += arrowTri(dimX, m2.b, isBot2 ? 90 : -90, arrLen);
-          dims += dimLabel(dimX, midv2, m2.label, -90);
-        }
-        var totX = dimX + off, midY = totalH / 2;
-        dims += L(totX, y1, totX, y3, 'dim');
-        dims += arrowTri(totX, y1, -90, arrLen);
-        dims += arrowTri(totX, y3, 90, arrLen);
-        dims += L(totX - extTick, y1, totX + tick, y1, 'dim');
-        dims += L(totX - extTick, y3, totX + tick, y3, 'dim');
-        dims += dimLabel(totX, midY, totalH, -90);
+      for (i = 1; i < xMarks.length - 1; i++) {
+        var a = xMarks[i], b = xMarks[i + 1], mid = (a + b) / 2;
+        var isFirst = (i === 1), isLast = (i === xMarks.length - 2);
+        dims += L(a, dimY, b, dimY, 'dim');
+        dims += L(a, dimY - extTick, a, dimY + tick, 'dim');
+        dims += L(b, dimY - extTick, b, dimY + tick, 'dim');
+        dims += arrowTri(a, dimY, isFirst ? 180 : 0, arrLen);
+        dims += arrowTri(b, dimY, isLast ? 0 : 180, arrLen);
+        dims += dimLabel(mid, dimY, labels[i], 0);
       }
+      // общая ширина
+      var totY = dimY + off;
+      dims += L(0, totY, totalW, totY, 'dim');
+      dims += arrowTri(0, totY, 180, arrLen);
+      dims += arrowTri(totalW, totY, 0, arrLen);
+      dims += L(0, dimY - extTick, 0, totY + tick, 'dim');
+      dims += L(totalW, totY - extTick, totalW, totY + tick, 'dim');
+      dims += dimLabel(totalW / 2, totY, totalW, 0);
+
+      // вертикальные секции (стенка + нижний клапан)
+      var dimX = totalW + off;
+      var yMarks = [{ a: y1, b: y2, label: wallH }, { a: y2, b: y3, label: flapH }];
+      for (var k = 0; k < yMarks.length; k++) {
+        var m = yMarks[k], midv = (m.a + m.b) / 2;
+        var isTop = (k === 0), isBot = (k === yMarks.length - 1);
+        dims += L(dimX, m.a, dimX, m.b, 'dim');
+        dims += L(dimX - extTick, m.a, dimX + tick, m.a, 'dim');
+        dims += L(dimX - extTick, m.b, dimX + tick, m.b, 'dim');
+        dims += arrowTri(dimX, m.a, isTop ? -90 : 90, arrLen);
+        dims += arrowTri(dimX, m.b, isBot ? 90 : -90, arrLen);
+        dims += dimLabel(dimX, midv, m.label, -90);
+      }
+      // общая высота
+      var totX = dimX + off, midY = totalH / 2;
+      dims += L(totX, y1, totX, y3, 'dim');
+      dims += arrowTri(totX, y1, -90, arrLen);
+      dims += arrowTri(totX, y3, 90, arrLen);
+      dims += L(totX - extTick, y1, totX + tick, y1, 'dim');
+      dims += L(totX - extTick, y3, totX + tick, y3, 'dim');
+      dims += dimLabel(totX, midY, totalH, -90);
     }
 
     var vb;
     if (withDims) {
       var extra = Math.max(totalW, totalH) * 0.14;   // запас под размерные линии справа/снизу
-      vb = fitViewBox(totalW, totalH, extra, extra, forPDF, withDims);
+      vb = fitViewBox(totalW, totalH, extra, extra);
     } else {
       vb = '0 0 ' + totalW + ' ' + totalH;   // экспорт: строго 1:1
     }
@@ -2269,607 +1968,10 @@ function stampActive(forPDF, withDims) {
       '.dimarr-tri{fill:' + c02.dim + ';stroke:none;}' +
       '.dimtxt{font-family:Arial,sans-serif;font-weight:bold;fill:' + c02.dim + ';}' +
       '.dimbg{fill:#FFFFFF;stroke:none;}' +
-      '</style>' + cut.join('') + fold.join('') + dims + corrIcon +
-      stampFrameRect(totalW, totalH, forPDF, withDims) + '</svg>';
+      '</style>' + cut.join('') + fold.join('') + dims + corrIcon + '</svg>';
   }
 
-  function buildSVG0711(d, withDims, forPDF) {
-    var GLUE = d.GLUE;
-    var flapH = d.flapH, wallH = d.wallH, panels = d.panels, totalW = d.totalW, slantRise = d.slantRise;
-       // ── НИЖНИХ КЛАПАНОВ НЕТ: верхний клапан + стенка, снизу линия реза ──
-    // Дно 0711 (клапаны A/C с мысками) уходит вниз на (W+2)/2 + 25 от y2 — учитываем в общей высоте.
-    var bottomDepth0711 = (d.wIn + 2) / 2 + 25;   // глубина дна = низ A1/C1
-    var totalH = flapH + wallH + bottomDepth0711; // полная высота заготовки С ДНОМ
-    var y0 = 0;                          // верх верхнего клапана
-    var y1 = flapH;                      // низ клапана / верх стенки
-    var y2 = flapH + wallH;              // низ стенки = линия реза (бывшая биговка)
-        // ── параметры R4 клеевого клапана / R4.3 (объявлены ЗАРАНЕЕ — нужны для правой вертикали) ──
-        var R4_GLUE07    = 4;   // радиус четвертинок клеевого клапана / R4.3, мм
-    var R4_GLUE_DOWN = 2;   // сдвиг НИЖНЕЙ четвертинки вниз по Y, мм
-    var R4_GLUE_UP   = 2;   // сдвиг ВЕРХНЕЙ четвертинки (R4.2) вверх по Y, мм
-
-    var xs = [GLUE];
-    for (var p = 0; p < panels.length; p++) xs.push(xs[xs.length - 1] + panels[p]);
-    var last = panels.length;
-    var cut = [], fold = [];
-    var ccFold07 = [];   // биговочные штрихи A6/C6 (в чёрном режиме не рисуются)
-
-            // ── КЛЕЕВОЙ КЛАПАН слева (по высоте стенки y1..y2), БЕЗ штриховки ──
-    //   Верхняя линия реза: опущена на 2мм по Y.
-    //   Вертикальный рез клапана сверху: смещён на 4мм вправо.
-    //   Нижняя линия реза: наклон 45°, поднята на 2мм по Y.
-    var GLUE_BOTLIFT = 2;                          // подъём нижней линии клапана по Y, мм
-    var GLUE_TOPDROP = 2;                          // опускание ВЕРХНЕЙ линии реза по Y, мм
-    var GLUE_TOPRIGHT = 0;                         // сдвиг ВЕРХА вертик. реза вправо по X, мм
-    var GLUE_botLX = 0,    GLUE_botLY = y2 - GLUE - GLUE_BOTLIFT;   // лев. точка низа (45° → dy=GLUE)
-    var GLUE_botRX = GLUE, GLUE_botRY = y2 - GLUE_BOTLIFT;          // прав. точка низа
-    // верхний скос: обе точки опущены на GLUE_TOPDROP; левая (верх вертикали) сдвинута вправо на GLUE_TOPRIGHT
-    var GLUE_topRX = GLUE,               GLUE_topRY = y1 + GLUE_TOPDROP;                 // прав. верх (у стенки)
-    var GLUE_topLX = GLUE_TOPRIGHT,      GLUE_topLY = y1 + slantRise + GLUE_TOPDROP;     // лев. верх (+4мм вправо)
-    cut.push(L(GLUE_topRX, GLUE_topRY, GLUE_topLX, GLUE_topLY, 'cut'));  // верхний скос (опущен 2мм, лев. точка +4мм)
-    cut.push(L(GLUE_topLX, GLUE_topLY, GLUE_botLX, GLUE_botLY, 'cut'));  // левый вертик. рез (от новой верх. точки к низу)
-    cut.push(L(GLUE_botLX, GLUE_botLY, GLUE_botRX, GLUE_botRY, 'cut'));  // нижний рез (45°, поднят на 2мм)
-    // штриховка клеевого клапана убрана
-
-    var isHalf = d.half === true;
-    function flapLeft(i)  { return (i === 0) ? xs[i] : xs[i] + SLOT_W / 2; }
-    function flapRight(i) {
-      if (i === last - 1) return xs[i + 1];
-      return xs[i + 1] - SLOT_W / 2;
-    }
-
-                // ── ГОРИЗОНТ. БИГОВКИ с разрывами в зонах слоттеров (R4) ──
-                var SLOT_HW_07 = SLOT_W / 2;   // полуширина зоны слоттера, мм
-                var R4_GLUE07_START = 4;   // радиус R4 клеевого клапана — старт нижней биговки правее дуги
-                function foldHGaps07(yLine, startX, endX) {
-          // зоны-разрывы по стыкам панелей (центры слоттеров), отсортированы
-          var gaps = [];
-          for (var gi = 1; gi < panels.length; gi++)
-            gaps.push([xs[gi] - SLOT_HW_07, xs[gi] + SLOT_HW_07]);
-          gaps.sort(function (a, b) { return a[0] - b[0]; });
-          var cur = (startX != null) ? startX : GLUE;
-          var lim = (endX != null) ? endX : totalW;   // правый предел биговки
-          for (var g = 0; g < gaps.length; g++) {
-            if (gaps[g][1] <= cur) continue;              // зона уже позади старта
-            if (gaps[g][0] >= lim) break;                 // зона за пределом — стоп
-            if (gaps[g][0] > cur) fold.push(L(cur, yLine, gaps[g][0], yLine, 'fold'));
-            cur = gaps[g][1];   // перепрыгиваем зону слоттера
-          }
-          if (cur < lim) fold.push(L(cur, yLine, lim, yLine, 'fold'));
-        }
-
-        // ── Подпись C/C у диагональной линии перегиба (наклон вдоль линии) ──
-        var ccLabels07 = [];   // накапливаем метки, отрисуем в конце
-        function ccDiagLabel(x0, y0d, x1, y1d) {
-      var mx = (x0 + x1) / 2, my = (y0d + y1d) / 2;
-      var ang = Math.atan2(y1d - y0d, x1 - x0) * 180 / Math.PI;  // угол линии
-      // нормализуем угол, чтобы текст НЕ был кверху тормашками (держим в -90..+90)
-      if (ang > 90)  ang -= 180;
-      if (ang < -90) ang += 180;
-      var fs = Math.max(totalW, totalH) * 0.012 * 1.1;   // ⬆ шрифт C/C увеличен на 10%
-      var off = fs * 1.2;
-      var a = ang * Math.PI / 180;
-      var nx = -Math.sin(a), ny = Math.cos(a);           // нормаль к линии
-      var tx = mx + nx * off, ty = my + ny * off;
-      // цвет подписи = как у размерных линий (dim): синий в цветном, чёрный в чёрном
-      var labelColor = COLOR_SWAP_02 ? '#4FBEFF' : '#000000';
-      // font-weight 440 ≈ обычный(400) + 10%; жирнее без перехода в bold(700)
-      ccLabels07.push('<g transform="translate(' + tx.toFixed(2) + ',' + ty.toFixed(2) +
-        ') rotate(' + ang.toFixed(2) + ')">' +
-        '<text style="font-size:' + fs.toFixed(2) + 'px;font-family:Arial,sans-serif;font-weight:440;fill:' +
-        labelColor +
-        ';" text-anchor="middle" dominant-baseline="central">C/C ' +
-        CC_STEP_A6C6 + 'x' + CC_STEP_A6C6 + '</text></g>');
-    }
-
-       // ── Диагональная линия перегиба C/C: 10мм биговка / 10мм рез, старт и конец — биговкой ──
-       function ccDiagLine(x0, y0d, x1, y1d, step) {
-      var dx = x1 - x0, dy = y1d - y0d;
-      var len = Math.hypot(dx, dy);
-      if (len < 1e-6) return;
-      var ux = dx / len, uy = dy / len;
-      var endMin = step / 2;
-      if (len < step * 2 + endMin) { ccFold07.push(L(x0, y0d, x1, y1d, 'fold')); return; }  // не влезает → сплошная биговка
-      var t = 0;
-      // старт: биговка step
-      ccFold07.push(L(x0 + ux*t, y0d + uy*t, x0 + ux*(t+step), y0d + uy*(t+step), 'fold'));
-      t += step;
-      while (len - t >= step + endMin) {
-        // рез step
-        cut.push(L(x0 + ux*t, y0d + uy*t, x0 + ux*(t+step), y0d + uy*(t+step), 'cut'));
-        t += step;
-        // концевая биговка: добить остаток или ровно step
-        var foldEnd = (len - (t + step) >= step + endMin) ? (t + step) : len;
-        ccFold07.push(L(x0 + ux*t, y0d + uy*t, x0 + ux*foldEnd, y0d + uy*foldEnd, 'fold'));
-        t = foldEnd;
-      }
-      if (t < len - 0.01) ccFold07.push(L(x0 + ux*t, y0d + uy*t, x1, y1d, 'fold'));  // хвост-биговка
-    }
-    var CC_STEP_A6C6 = 10;   // шаг чередования биг/рез для A6 и C6, мм
-
-               // ── НИЖНЯЯ ЛИНИЯ (биговка y2) — старт правее R4 клеевого клапана, конец левее R4.3 крайней панели ──
-               foldHGaps07(y2, GLUE + R4_GLUE07_START, totalW - R4_GLUE07);
-                // ══════════════════════════════════════════════════════════
-    // ДНО 0711: клапан из D1 (45°) + D3 (горизонт) + D2 (15°).
-    //   Функция строит дно для панели с правым краем xR и левым xL.
-    //   Привязка — к ПРАВОМУ краю панели (как раньше к xs[last]).
-    // ──────────────────────────────────────────────────────────
-    var wIn0711 = d.wIn;                       // исходная ширина
-    var d1Len   = (wIn0711 + 2) / 2;           // глубина клапана по оси Y = (W+2)/2
-    var d2dx    = d1Len * Math.tan(15 * Math.PI / 180);  // горизонт. проекция D2 (15° от верт.)
-    var D3_TRIM_LEFT = SLOT_W / 2;             // = 4мм — обрезка D3 слева
-    var D2_SHIFT_X   = SLOT_W / 2;             // = 4мм — сдвиг D2 вправо (левый край дуги R4)
-    var D2_TRIM_TOP  = 2;                       // = R4_DOWN07 — обрезка D2 сверху на 2мм
-
-    function buildBottom0711(xR, xL, b1ShiftX, b1ShiftY, b1TrimBot, b2ShiftX, b3TrimLeftExtra, b1TrimTop, b2ShiftXAbs) {
-      // xR — правый край панели; xL — левый край
-      // b1ShiftX/Y, b1TrimBot — правки линии B1
-      // b2ShiftX        — доп. сдвиг ЛИНИИ B2 вправо по X (только этот клапан)
-      // b3TrimLeftExtra — доп. обрезка ЛИНИИ B3 слева по X (только этот клапан)
-      // b1TrimTop       — обрезка D1 СВЕРХУ по оси Y (верхняя точка едет вниз вдоль линии 45°)
-      b1ShiftX = b1ShiftX || 0;
-      b1ShiftY = b1ShiftY || 0;
-      b1TrimBot = b1TrimBot || 0;
-      b2ShiftX = b2ShiftX || 0;
-      b3TrimLeftExtra = b3TrimLeftExtra || 0;
-      b1TrimTop = b1TrimTop || 0;
-      b2ShiftXAbs = b2ShiftXAbs || 0;   // жёсткий сдвиг ЛИНИИ D2/B2 по X (независимо от D1/D3)
-
-            // ── D3/D2 считаются от ИСХОДНОЙ нижней точки B1 БЕЗ b1ShiftX (чтобы D2/D3 НЕ ехали за D1) ──
-            var baseX1 = (xR - d1Len);              // X нижней точки B1 БЕЗ сдвига — D3/D2 стоят на месте
-      var baseY1 = y2 + d1Len;                // Y нижней точки B1 БЕЗ сдвига/обрезки (база для D3)
-
-              // ── D1 (=B1): 45° вниз-влево. b1ShiftX двигает ВСЮ линию D1 (верх+низ), НЕ трогая D2/D3.
-      // b1TrimTop: верхняя точка едет вниз на b1TrimTop по Y и на столько же влево по X (45°).
-      var D1x0 = xR + b1ShiftX - b1TrimTop,   D1y0 = y2 + b1ShiftY + b1TrimTop;    // верхняя точка B1 (сдвинута +b1ShiftX)
-      var D1x1 = baseX1 + b1ShiftX,           D1y1 = (y2 + d1Len) + b1ShiftY - b1TrimBot;  // нижняя точка B1 (сдвинута +b1ShiftX)
-      cut.push(L(D1x0, D1y0, D1x1, D1y1, 'cut'));                             // B1
-
-      // ── Длина D3: Lстороны − Δx(D1) − Δx(D2) ──
-      var Lside = xR - xL;                               // ширина панели
-      var D3len = Lside - d1Len - d2dx;
-
-                      // ── D3 (=B3): правый конец = низ D1 (сдвинут на b1ShiftX) ──
-                      var D3x0 = baseX1 + b1ShiftX,  D3y0 = baseY1;                        // правый конец D3 = низ D1 (стык замкнут)
-      var D3xFull = baseX1 - D3len;                                        // «полный» левый конец БЕЗ b1ShiftX (база для D2)
-      var D3y1 = D3y0;                                                     // Y левого конца D3 = уровень дна
-
-            // ── D2 (=B2): 15° от вертикали. b2ShiftXAbs — жёсткий сдвиг всей линии по X (незав. от D1/D3) ──
-            var D2x0 = (D3xFull - d2dx) + D2_SHIFT_X + b2ShiftX + b2ShiftXAbs,  D2y0 = (D3y1 - d1Len) + D2_TRIM_TOP;   // верх
-      var D2x1 = D3xFull + D2_SHIFT_X + b2ShiftX + b2ShiftXAbs,           D2y1 = D3y1;                            // низ
-
-      // ── левый конец B3 = низ B2 (стык замкнут при любом сдвиге B2) + доп. обрезка слева ──
-      var D3x1 = D2x1 + b3TrimLeftExtra;                                   // сажаем ровно на низ B2
-      cut.push(L(D3x0, D3y0, D3x1, D3y1, 'cut'));                          // B3
-      cut.push(L(D2x0, D2y0, D2x1, D2y1, 'cut'));                          // B2
-    }
-
-        // ══════════════════════════════════════════════════════════
-    // ДНО НА СТОРОНЕ A: линия A1 — 10° от вертикали, вниз-вправо,
-    //   старт от ПЕРВОЙ вертикальной биговки (xs[1], y2).
-    //   Длина по оси Y = (W+2)/2 + 25.
-    // ──────────────────────────────────────────────────────────
-    var A1_dyLen = (d.wIn + 2) / 2 + 25;                 // длина A1 по оси Y (проекция), мм
-    var A1_ang   = 10 * Math.PI / 180;                   // угол от вертикали
-    var A1_dx    = A1_dyLen * Math.tan(A1_ang);          // горизонт. проекция (вправо)
-    var A1_SHIFT_X = 3.647;                                  // сдвиг всей линии вправо, мм
-    var A1_TRIM_TOP = 2;                                 // обрезка сверху по оси Y, мм
-    var A1_trimDx = A1_TRIM_TOP * Math.tan(A1_ang);      // сдвиг верхней точки по X (вдоль линии)
-    // верх: старт опущен на 2мм по Y и смещён по X, чтобы остаться на той же линии; всё +4мм вправо
-    var A1x0 = GLUE + A1_SHIFT_X + A1_trimDx,   A1y0 = y2 + A1_TRIM_TOP;
-    // низ: конец под 10°, весь узел +4мм вправо
-    var A1x1 = GLUE + A1_SHIFT_X + A1_dx,       A1y1 = y2 + A1_dyLen;
-    cut.push(L(A1x0, A1y0, A1x1, A1y1, 'cut'));          // A1 (+4мм вправо, обрезка сверху 2мм)
-
-    // ── ЧЕТВЕРТИНКА R25 на стороне A (выпукло ВПРАВО) ──
-    //   нижний конец R25 по Y = уровень конца A1 (y2 + A1_dyLen), не ниже.
-    //   правый край R25 по X  = ЦЕНТР панели A (сторона L+3): (GLUE + xs[1]) / 2.
-    var R25_A     = 25;                                   // радиус четвертинки, мм (25 из формулы)
-    var A_panelCx = (GLUE + xs[1]) / 2;                   // центр панели A по X (по зелёной линии)
-    var R25_yBot  = y2 + A1_dyLen;                        // Y нижнего конца R25 (= уровень конца A1)
-    var R25_cX    = A_panelCx - R25_A;                    // центр окружности по X (левее правого края на R)
-    // дуга: низ (cX, yBot) → право (A_panelCx, yBot - R25), выпуклостью вправо (sweep=0)
-    cut.push('<path class="cut" d="M' +
-      R25_cX.toFixed(3) + ' ' + R25_yBot.toFixed(3) +
-      ' A' + R25_A.toFixed(3) + ' ' + R25_A.toFixed(3) + ' 0 0 0 ' +
-      A_panelCx.toFixed(3) + ' ' + (R25_yBot - R25_A).toFixed(3) + '" />');  // R25 четвертинка (вправо)
-          // ── ЗАМЫКАЮЩАЯ ЛИНИЯ РЕЗА: низ A1 ↔ низ R25 (оба на уровне y2 + A1_dyLen) ──
-    var A_botY = y2 + A1_dyLen;                 // общий уровень нижних концов
-    cut.push(L(A1x1, A_botY, R25_cX, A_botY, 'cut'));   // дно клапана A (A1 → R25)
-    // ══════════════════════════════════════════════════════════
-
-    var A_botY = y2 + A1_dyLen;                 // общий уровень нижних концов
-    cut.push(L(A1x1, A_botY, R25_cX, A_botY, 'cut'));   // дно клапана A (A1 → R25)
-
-        // ── ЛИНИЯ A3: 45° от вертикали, вниз-влево, длина по Y = 9мм ──
-    //   старт: первая вертикальная биговка (xs[1]) на линии реза (y2) — красный кружок референса.
-    var A3_dyLen = 9;                            // длина A3 по оси Y, мм
-    var A3_ang   = 45 * Math.PI / 180;           // угол от вертикали
-    var A3_dx    = A3_dyLen * Math.tan(A3_ang);  // горизонт. проекция (= 9 при 45°)
-    var A3_SHIFT_X  = -2;                         // сдвиг всей линии влево, мм
-    var A3_TRIM_TOP = 2;                          // обрезка сверху по оси Y, мм
-    var A3_trimDx = A3_TRIM_TOP * Math.tan(A3_ang);   // ход верхней точки по X вдоль линии (=2)
-    // верх: опущен на 2мм по Y, смещён вдоль линии (вниз-влево → X ещё левее), плюс общий сдвиг −4
-    var A3x0 = xs[1] + A3_SHIFT_X - A3_trimDx,   A3y0 = y2 + A3_TRIM_TOP;
-    // низ: конец под 45° вниз-влево, весь узел −4мм влево
-    var A3x1 = (xs[1] - A3_dx) + A3_SHIFT_X,      A3y1 = y2 + A3_dyLen;
-    cut.push(L(A3x0, A3y0, A3x1, A3y1, 'cut'));           // A3 (45°, вниз-влево, влево −4, обрезка сверху 2мм)
-
-    // ── ЛИНИЯ A4: от нижней точки A3, 45° вниз-ВПРАВО, длина по оси X = 8мм ──
-    var A4_dxLen = 8;                            // длина A4 по оси X, мм
-    var A4_ang   = 45 * Math.PI / 180;           // угол от вертикали
-    var A4_dy    = A4_dxLen / Math.tan(A4_ang);  // проекция по Y (= 8 при 45°)
-    var A4x0 = A3x1,             A4y0 = A3y1;                 // старт: низ A3
-    var A4x1 = A3x1 + A4_dxLen,  A4y1 = A3y1 + A4_dy;         // конец: вниз-вправо под 45°
-    cut.push(L(A4x0, A4y0, A4x1, A4y1, 'cut'));           // A4 (45°, вниз-вправо, 8мм по X)
-
-// ── ЛИНИЯ A5: от конца A4 ВНИЗ до уровня дна A1 (не ниже длины A1) ──
-var A5_botY = y2 + A1_dyLen;                 // предел по Y = конец A1 (не ниже)
-cut.push(L(A4x1, A4y1, A4x1, A5_botY, 'cut'));        // A5 (вертикаль вниз до уровня A1)
-
-        // ── ЛИНИЯ A7 (рез, горизонт): от верхнего края R25 ВПРАВО до биговки A6 ──
-    //   уровень A7 = верхний край дуги R25 (её точка «право» по Y).
-    var A7_y  = R25_yBot - R25_A;                // Y горизонтали A7 = верх R25
-    var A7_xL = A_panelCx;                       // левый конец A7 = правый край R25 (центр панели A)
-
-    // ── БИГОВКА A6: от стыка A3↔A4, 45° вниз-влево, ОБРЕЗАНА по уровню A7 (не ниже) ──
-    var A6_ang = 45 * Math.PI / 180;             // угол от вертикали
-    var A6x0 = A3x1,   A6y0 = A3y1;              // старт: стык A3↔A4 (низ A3 = верх A4)
-    var A6_t = A7_y - A3y1;                       // ход A6 по Y до уровня A7 (= по X при 45°)
-    if (A6_t < 0) A6_t = 0;                       // страховка: не выше старта
-    var A6x1 = A3x1 - A6_t,   A6y1 = A7_y;       // конец A6 = пересечение с A7
-    ccDiagLine(A6x0, A6y0, A6x1, A6y1, CC_STEP_A6C6);       // A6 (10/10 биг/рез, 45°, вниз-влево, до A7)
-    ccDiagLabel(A6x0, A6y0, A6x1, A6y1);                    // подпись «C/C 10x10» вдоль A6
-        // A7: от правого края R25 (A7_xL) вправо до нижнего конца A6 (A6x1) на уровне A7_y
-        cut.push(L(A7_xL, A7_y, A6x1, A7_y, 'cut'));            // A7 (рез, горизонт, R25 → A6)
-
-// ── ЛИНИЯ A8 (рез): от стыка A7↔A6, 35° от вертикали, вниз-ВПРАВО ──
-var A8_ang = 35 * Math.PI / 180;             // угол от вертикали
-var A8x0 = A6x1,   A8y0 = A7_y;              // старт: нижний конец A6 (= стык A7↔A6)
-
-// ── ЛИНИЯ A9 (рез, горизонт): от линии A5 ВЛЕВО до пересечения с A8 ──
-var A9_y = A5_botY;                          // уровень A9 = низ A5 (= уровень дна A1)
-// пересечение A8 с горизонталью A9 (y = A9_y): ход A8 по Y до A9
-var A8_dy = A9_y - A8y0;                      // вертикальный ход A8 до уровня A9
-if (A8_dy < 0) A8_dy = 0;                     // страховка: A9 не выше старта A8
-var A8_dx = A8_dy * Math.tan(A8_ang);        // горизонт. проекция вправо
-var A8x1 = A8x0 + A8_dx,   A8y1 = A9_y;      // конец A8 = точка пересечения с A9
-cut.push(L(A8x0, A8y0, A8x1, A8y1, 'cut'));           // A8 (35°, вниз-вправо, до A9)
-
-// A9: от низа A5 (A4x1, A9_y) влево до точки пересечения с A8 (A8x1, A9_y)
-cut.push(L(A4x1, A9_y, A8x1, A9_y, 'cut'));           // A9 (рез, горизонт, A5 → A8)
-
-cut.push(L(A4x1, A9_y, A8x1, A9_y, 'cut'));           // A9 (рез, горизонт, A5 → A8)
-
-    // ══════════════════════════════════════════════════════════
-    // ДНО НА СТОРОНЕ C (панель 3): полная копия дна секции A.
-    //   GLUE→xs[2] (лев. граница C), xs[1]→xs[3] (прав. биговка C).
-    // ──────────────────────────────────────────────────────────
-    var C_L = xs[2], C_R = xs[3];                        // границы панели C
-
-    // ── C1: 10° от вертикали, вниз-вправо, старт от прав. биговки (C_R) ──
-    var C1x0 = C_L + A1_SHIFT_X + A1_trimDx,   C1y0 = y2 + A1_TRIM_TOP;
-    var C1x1 = C_L + A1_SHIFT_X + A1_dx,       C1y1 = y2 + A1_dyLen;
-    cut.push(L(C1x0, C1y0, C1x1, C1y1, 'cut'));          // C1
-
-    // ── Четвертинка R25 на стороне C ──
-    var C_panelCx = (C_L + C_R) / 2;                     // центр панели C
-    var R25_cXc   = C_panelCx - R25_A;
-    cut.push('<path class="cut" d="M' +
-      R25_cXc.toFixed(3) + ' ' + R25_yBot.toFixed(3) +
-      ' A' + R25_A.toFixed(3) + ' ' + R25_A.toFixed(3) + ' 0 0 0 ' +
-      C_panelCx.toFixed(3) + ' ' + (R25_yBot - R25_A).toFixed(3) + '" />');   // R25 (C)
-
-    // ── Замыкающая линия дна C: низ C1 ↔ низ R25 ──
-    cut.push(L(C1x1, A_botY, R25_cXc, A_botY, 'cut'));   // дно клапана C (C1 → R25)
-
-    // ── C3: 45° вниз-влево, старт от C_R ──
-    var C3x0 = C_R + A3_SHIFT_X - A3_trimDx,   C3y0 = y2 + A3_TRIM_TOP;
-    var C3x1 = (C_R - A3_dx) + A3_SHIFT_X,      C3y1 = y2 + A3_dyLen;
-    cut.push(L(C3x0, C3y0, C3x1, C3y1, 'cut'));          // C3
-
-    // ── C4: от низа C3, 45° вниз-вправо, 8мм по X ──
-    var C4x0 = C3x1,             C4y0 = C3y1;
-    var C4x1 = C3x1 + A4_dxLen,  C4y1 = C3y1 + A4_dy;
-    cut.push(L(C4x0, C4y0, C4x1, C4y1, 'cut'));          // C4
-
-    // ── C5: от конца C4 вниз до уровня дна C1 ──
-    cut.push(L(C4x1, C4y1, C4x1, A5_botY, 'cut'));       // C5
-
-    // ── C7 (рез, горизонт): от верх. края R25(C) вправо до биговки C6 ──
-    var C7_xL = C_panelCx;
-
-    // ── C6 (БИГОВКА): от стыка C3↔C4, 45° вниз-влево, до уровня A7 ──
-    var C6x0 = C3x1,   C6y0 = C3y1;
-    var C6_t = A7_y - C3y1;
-    if (C6_t < 0) C6_t = 0;
-    var C6x1 = C3x1 - C6_t,   C6y1 = A7_y;
-    ccDiagLine(C6x0, C6y0, C6x1, C6y1, CC_STEP_A6C6);   // C6 (10/10 биг/рез)
-    ccDiagLabel(C6x0, C6y0, C6x1, C6y1);                // подпись «C/C 10x10» вдоль C6
-
-    // C7: от прав. края R25(C) вправо до низа C6
-    cut.push(L(C7_xL, A7_y, C6x1, A7_y, 'cut'));         // C7
-
-    // ── C8 (рез): от стыка C7↔C6, 35° вниз-вправо, до уровня A9 ──
-    var C8x0 = C6x1,   C8y0 = A7_y;
-    var C8_dy = A9_y - C8y0;
-    if (C8_dy < 0) C8_dy = 0;
-    var C8_dx = C8_dy * Math.tan(A8_ang);
-    var C8x1 = C8x0 + C8_dx,   C8y1 = A9_y;
-    cut.push(L(C8x0, C8y0, C8x1, C8y1, 'cut'));          // C8
-
-    // C9: от низа C5 (C4x1) влево до пересечения с C8
-    cut.push(L(C4x1, A9_y, C8x1, A9_y, 'cut'));          // C9
-    // ══════════════════════════════════════════════════════════
-                          // ── Дно на стороне D: D1 сдвинут влево на 4мм + обрезан сверху на 2мм ──
-                          buildBottom0711(xs[last], xs[last - 1], -2, 0, 0, 0, 0, 2);
-                          //   b1ShiftX=-4 (влево 4мм), b1TrimTop=2 (обрезка D1 сверху 2мм); B2/B3 без изменений
-              // ── Дно на стороне B: B2 (15°) влево на 4мм; B3 упирается ровно в низ B2 (замкнут) ──
-              buildBottom0711(xs[2], xs[1], -SLOT_W / 2, 2, 2, SLOT_W / 2, 0, 0, -4);
-       //   7-й аргумент b3TrimLeftExtra=0 → левый конец B3 = низ B2; 9-й b2ShiftXAbs=-4
-    //   8-й аргумент = b1TrimTop (0, не трогаем); 9-й = b2ShiftXAbs = -4 → B2 влево на 4мм
-   
-    // ══════════════════════════════════════════════════════════
-
-    var i, xL, xR;
-    var R4_UP07 = 2;   // смещение верхнего полукруга/резов слоттера вверх, мм
-    // ── ВЕРХНИЕ КЛАПАНЫ (только они) ──
-    // Стыковые (слоттерные) стороны клапанов укорачиваем снизу на R4_UP07,
-    // чтобы вертикальный рез не выходил за контур верхнего полукруга R4.
-        // ── СДВИГ ПЕРВОЙ вертик. линии реза верхнего клапана на 4мм вправо ──
-        var FLAP_FIRSTCUT_RIGHT = 4;   // сдвиг ЛЕВОГО реза первого верхнего клапана вправо, мм
-    for (i = 0; i < panels.length; i++) {
-      xL = flapLeft(i); xR = flapRight(i);
-      // первая вертикаль реза (левый рез клапана i=0) сдвигается вправо на 4мм
-      var xLcut = (i === 0) ? (xL + FLAP_FIRSTCUT_RIGHT) : xL;
-      // верхняя горизонталь клапана стартует от сдвинутой вертикали (i=0), иначе как было
-      cut.push(L(xLcut, y0, xR, y0, 'cut'));        // верх клапана
-      var xLbot = (i > 0) ? (y1 - R4_UP07) : y1;
-      var xRbot = (i < last - 1) ? (y1 - R4_UP07) : y1;
-      cut.push(L(xLcut, y0, xLcut, xLbot, 'cut'));  // левый рез клапана (i=0: +4мм вправо)
-      cut.push(L(xR, y0, xR, xRbot, 'cut'));        // правый рез клапана
-    }
-          // ── ЗАМЫКАНИЕ СЛОТОВ ПОЛУКРУГОМ R4 (только 0711) ──
-    //   верхний R4 на y1-R4_UP07 (совпадает с укороченными резами слоттера),
-    //   нижний  R4 на y2+2 (опущен на 2мм вниз по Y).
-    var HW07 = SLOT_W / 2;
-    var R4_DOWN07 = 2;                       // смещение нижнего полукруга вниз, мм
-    for (i = 1; i < panels.length; i++) {
-      var sc07 = xs[i];
-      var yTop07 = y1 - R4_UP07;             // верхний полукруг (тот же R4_UP07)
-      var yBot07 = y2 + R4_DOWN07;           // нижний полукруг опущен на 2мм
-      // (1) верхний полукруг, выпуклостью вниз (sweep=0)
-      cut.push('<path class="cut" d="M' +
-        (sc07 - HW07).toFixed(3) + ' ' + yTop07.toFixed(3) +
-        ' A' + HW07.toFixed(3) + ' ' + HW07.toFixed(3) + ' 0 0 0 ' +
-        (sc07 + HW07).toFixed(3) + ' ' + yTop07.toFixed(3) + '" />');
-      // (2) нижний полукруг на y2+2, выпуклостью ВВЕРХ (sweep=1)
-      cut.push('<path class="cut" d="M' +
-        (sc07 - HW07).toFixed(3) + ' ' + yBot07.toFixed(3) +
-        ' A' + HW07.toFixed(3) + ' ' + HW07.toFixed(3) + ' 0 0 1 ' +
-        (sc07 + HW07).toFixed(3) + ' ' + yBot07.toFixed(3) + '" />');
-    }
-
-           // правый край стенки (укорочен снизу под четвертинку R4.3)
-    var R4_G3_YBOT = (y2 + R4_GLUE_DOWN) - R4_GLUE07;   // низ вертикали = старт дуги R4.3
-    if (isHalf) {
-      cut.push(L(xs[last], y0, xs[last], R4_G3_YBOT, 'cut'));
-    } else {
-      cut.push(L(xs[last], y1, xs[last], R4_G3_YBOT, 'cut'));
-    }
-
-               // ── БИГОВКИ ──
-        //   верх стенки: старт правее дуги R4.2 клеевого клапана (иначе биговка вылезает за контур на R4)
-        foldHGaps07(y1, GLUE + R4_GLUE07_START);                     // верх стенки — с разрывами в слоттерах
-    var VFOLD_TRIM07 = 2;   // укорочение вертик. биговок стенок сверху и снизу, мм
-    for (i = 1; i < panels.length; i++)
-      fold.push(L(xs[i], y1 + VFOLD_TRIM07, xs[i], y2 - VFOLD_TRIM07, 'fold')); // вертик. сгибы стенок (−2 сверху/снизу)
-// R4_GLUE07 / R4_GLUE_DOWN / R4_GLUE_UP объявлены в начале функции
-var yQG  = y2 + R4_GLUE_DOWN;          // Y нижнего угла дуги (опущен на 2мм)
-var yQGt = y1 - R4_GLUE_UP;            // Y верхнего угла дуги (поднят на 2мм)
-    // вертикальный сгиб: укорочен СВЕРХУ (на R4) и СНИЗУ (на R4) до точек касания дуг
-    fold.push(L(GLUE, yQGt + R4_GLUE07, GLUE, yQG - R4_GLUE07, 'fold'));  // левый сгиб (укорочен с двух сторон)
-    // R4 НИЖНЯЯ четвертинка (sweep=1), узел опущен на R4_GLUE_DOWN по Y
-        cut.push('<path class="cut" d="M' +
-      GLUE.toFixed(3) + ' ' + (yQG - R4_GLUE07).toFixed(3) +
-      ' A' + R4_GLUE07.toFixed(3) + ' ' + R4_GLUE07.toFixed(3) + ' 0 0 1 ' +
-      (GLUE + R4_GLUE07).toFixed(3) + ' ' + yQG.toFixed(3) + '" />');   // R4 нижняя (опущена на 2мм)
-          // ── R4.3: четвертинка в НИЖНЕМ углу КРАЙНЕЙ ПРАВОЙ панели (зеркало R4 клеевого клапана по вертикали) ──
-    var R4_G3_X = xs[last];               // правый край стенки (крайняя панель)
-    var R4_G3_Y = yQG;                    // тот же уровень Y, что у нижней R4 клеевого клапана (y2 + R4_GLUE_DOWN)
-    // R4 клеевого клапана: вертикаль(GLUE) → дуга вправо-вниз → горизонталь(GLUE+R4).
-    // R4.3 = зеркало по X относительно xs[last]: вертикаль(xs[last]) → дуга ВЛЕВО-вниз → горизонталь(xs[last]-R4).
-    // старт от вертикали (xs[last], yQG-R4) дугой к горизонтали (xs[last]-R4, yQG), sweep=0 (зеркало sweep=1).
-    cut.push('<path class="cut" d="M' +
-      R4_G3_X.toFixed(3) + ' ' + (R4_G3_Y - R4_GLUE07).toFixed(3) +
-      ' A' + R4_GLUE07.toFixed(3) + ' ' + R4_GLUE07.toFixed(3) + ' 0 0 0 ' +
-      (R4_G3_X - R4_GLUE07).toFixed(3) + ' ' + R4_G3_Y.toFixed(3) + '" />');   // R4.3 (зеркало по X)
-    // R4.2 ВЕРХНЯЯ четвертинка (зеркало нижней, sweep=0), узел поднят на R4_GLUE_UP по Y.
-    // Старт от вертикали (GLUE, yQGt+R4) вверх-вправо к горизонтали (GLUE+R4, yQGt).
-        cut.push('<path class="cut" d="M' +
-      GLUE.toFixed(3) + ' ' + (yQGt + R4_GLUE07).toFixed(3) +
-      ' A' + R4_GLUE07.toFixed(3) + ' ' + R4_GLUE07.toFixed(3) + ' 0 0 0 ' +
-      (GLUE + R4_GLUE07).toFixed(3) + ' ' + yQGt.toFixed(3) + '" />');  // R4.2 верхняя (зеркало, поднята на 2мм)
-
-    // ── значок гофры (в верхнем клапане последней панели) ──
-    var lastPanel = panels[panels.length - 1];
-    var iconRefH = (typeof d.iconRefH === 'number') ? d.iconRefH : flapH;
-    var iconSize = Math.min(lastPanel, iconRefH) * ICON_SCALE;
-    var iconX = xs[last] - iconSize - ICON_PAD_X * iconSize;
-    var iconY = (flapH - iconSize) / 2 + ICON_PAD_Y * iconSize;   // центр верхнего клапана
-    var corrIcon = corrugationIcon(iconX, iconY, iconSize);
-
-    // ── размеры ──
-    var dims = '';
-    if (withDims) {
-      var base = Math.max(totalW, totalH);
-      var fontSize = base * 0.018 * 1.2 * 1.2;
-      var off = base * 0.06;
-      var tick = off * 0.1125;
-      var extTick = tick * 5.5;
-      var arrLen = tick * 2.2;
-
-      function dimLabel(cx, cy, txt, rot) {
-        var str = String(txt);
-        var padX = fontSize * 0.18, padY = fontSize * 0.14;
-        var bw = str.length * fontSize * 0.54 + padX * 2, bh = fontSize + padY * 2;
-        var g = '<g';
-        if (rot === -90) g += ' transform="rotate(-90 ' + cx + ' ' + cy + ')"';
-        g += '>';
-        g += '<rect class="dimbg" x="' + (cx - bw / 2) + '" y="' + (cy - bh / 2) + '" width="' + bw + '" height="' + bh + '" rx="' + (fontSize * 0.15) + '"/>';
-        g += '<text class="dimtxt" style="font-size:' + fontSize + 'px" x="' + cx + '" y="' + cy + '" text-anchor="middle" dominant-baseline="central">' + str + '</text>';
-        g += '</g>';
-        return g;
-      }
-
-             // ── ГОРИЗОНТАЛЬНЫЕ РАЗМЕРЫ (0711): ВНУТРИ при штампе/раскладке, СНАРУЖИ иначе ──
-      var xMarks = [0, GLUE];
-      for (var xi = 1; xi <= panels.length; xi++) xMarks.push(xs[xi]);
-      var labels = [GLUE];
-      for (var li = 0; li < panels.length; li++) labels.push(panels[li]);
-
-      if (dimsInside()) {
-        // ═══ ВНУТРИ развёртки (штамп ВКЛ или выбрана раскладка) ═══
-        var dimYseg = y1 + (y2 - y1) * 0.46;   // секции — чуть выше центра стенки
-        var dimYtot = y1 + (y2 - y1) * 0.66;   // общий размер — ниже
-        for (i = 1; i < xMarks.length - 1; i++) {
-          var a = xMarks[i], b = xMarks[i + 1], mid = (a + b) / 2;
-          var isFirst = (i === 1), isLast = (i === xMarks.length - 2);
-          dims += L(a, dimYseg, b, dimYseg, 'dim');
-          dims += arrowTri(a, dimYseg, isFirst ? 180 : 0, arrLen);
-          dims += arrowTri(b, dimYseg, isLast ? 0 : 180, arrLen);
-          dims += dimLabel(mid, dimYseg, labels[i], 0);
-        }
-        // общая ширина — по всей развёртке (без усиков)
-        dims += L(0, dimYtot, totalW, dimYtot, 'dim');
-        dims += arrowTri(0, dimYtot, 180, arrLen);
-        dims += arrowTri(totalW, dimYtot, 0, arrLen);
-        dims += dimLabel(totalW / 2, dimYtot, totalW, 0);
-
-      } else {
-        // ═══ СНАРУЖИ (обычный режим, как было) ═══
-        var botDepthH07 = (d.wIn + 2) / 2 + 25;   // глубина дна (низ A1/C1)
-        var dimY = y2 + botDepthH07 + off;        // под клапанами дна
-        for (i = 1; i < xMarks.length - 1; i++) {
-          var a = xMarks[i], b = xMarks[i + 1], mid = (a + b) / 2;
-          var isFirst = (i === 1), isLast = (i === xMarks.length - 2);
-          dims += L(a, dimY, b, dimY, 'dim');
-          dims += L(a, dimY - extTick, a, dimY + tick, 'dim');
-          dims += L(b, dimY - extTick, b, dimY + tick, 'dim');
-          dims += arrowTri(a, dimY, isFirst ? 180 : 0, arrLen);
-          dims += arrowTri(b, dimY, isLast ? 0 : 180, arrLen);
-          dims += dimLabel(mid, dimY, labels[i], 0);
-        }
-        var totY = dimY + off;
-        dims += L(0, totY, totalW, totY, 'dim');
-        dims += arrowTri(0, totY, 180, arrLen);
-        dims += arrowTri(totalW, totY, 0, arrLen);
-        dims += L(0, dimY - extTick, 0, totY + tick, 'dim');
-        dims += L(totalW, totY - extTick, totalW, totY + tick, 'dim');
-        dims += dimLabel(totalW / 2, totY, totalW, 0);
-      }
-          // ── полная высота нижних клапанов дна = (W+2)/2 + 25 (низ мысков A/C, не B/D) ──
-          var botDepth07 = (d.wIn + 2) / 2 + 25;   // общая высота нижних клапанов
-      var y2bot = y2 + botDepth07;             // нижний уровень клапанов дна (= уровень A1/C1)
-      var fullH07 = flapH + wallH + botDepth07;   // полная высота заготовки с дном
-      // ⚙️ формат дробного размера 0711: целое → как есть, дробь → как есть (56.5)
-      function fmt0711(v) {
-        var r = Math.round(v * 100) / 100;
-        return Number.isInteger(r) ? String(r) : String(r);
-      }
-      var yMarks = [
-        { a: y0, b: y1, label: flapH },                    // верхний клапан
-        { a: y1, b: y2, label: wallH },                    // стенка (высота h)
-        { a: y2, b: y2bot, label: fmt0711(botDepth07) }    // нижний клапан = (W+2)/2 + 25
-      ];
-
-      if (dimsInside()) {
-        // ═══ ВЕРТИКАЛЬНЫЕ РАЗМЕРЫ ВНУТРИ первой панели (штамп/раскладка) ═══
-        // Сдвинуты ВПРАВО на 40% ширины панели, чтобы не накладываться на горизонтальные.
-        var dimXin = xs[1] + (xs[2] - xs[1]) * 1.4;   // секции 57/114/81.5
-        for (var k = 0; k < yMarks.length; k++) {
-          var m = yMarks[k], midv = (m.a + m.b) / 2;
-          var isTop = (k === 0), isBot = (k === yMarks.length - 1);
-          dims += L(dimXin, m.a, dimXin, m.b, 'dim');
-          dims += arrowTri(dimXin, m.a, isTop ? -90 : 90, arrLen);
-          dims += arrowTri(dimXin, m.b, isBot ? 90 : -90, arrLen);
-          dims += dimLabel(dimXin, midv, m.label, -90);
-        }
-               // общая высота — правее секций (тоже +40%)
-               var totXin = xs[1] + (xs[2] - xs[1]) * 2.7, midYin = (y0 + y2bot) / 2;
-        dims += L(totXin, y0, totXin, y2bot, 'dim');
-        dims += arrowTri(totXin, y0, -90, arrLen);
-        dims += arrowTri(totXin, y2bot, 90, arrLen);
-        dims += dimLabel(totXin, midYin, fmt0711(fullH07), -90);
-
-      } else {
-        // ═══ ВЕРТИКАЛЬНЫЕ РАЗМЕРЫ СНАРУЖИ справа (обычный режим, как было) ═══
-        var dimX = totalW + off;
-        for (var k2 = 0; k2 < yMarks.length; k2++) {
-          var m2 = yMarks[k2], midv2 = (m2.a + m2.b) / 2;
-          var isTop2 = (k2 === 0), isBot2 = (k2 === yMarks.length - 1);
-          dims += L(dimX, m2.a, dimX, m2.b, 'dim');
-          dims += L(dimX - extTick, m2.a, dimX + tick, m2.a, 'dim');
-          dims += L(dimX - extTick, m2.b, dimX + tick, m2.b, 'dim');
-          dims += arrowTri(dimX, m2.a, isTop2 ? -90 : 90, arrLen);
-          dims += arrowTri(dimX, m2.b, isBot2 ? 90 : -90, arrLen);
-          dims += dimLabel(dimX, midv2, m2.label, -90);
-        }
-        var totX = dimX + off, midY = (y0 + y2bot) / 2;
-        dims += L(totX, y0, totX, y2bot, 'dim');
-        dims += arrowTri(totX, y0, -90, arrLen);
-        dims += arrowTri(totX, y2bot, 90, arrLen);
-        dims += L(totX - extTick, y0, totX + tick, y0, 'dim');
-        dims += L(totX - extTick, y2bot, totX + tick, y2bot, 'dim');
-        dims += dimLabel(totX, midY, fmt0711(fullH07), -90);
-      }
-
-// ── ШИРИНА РЕЗА СЛОТА (8мм): размер ПРЯМО НА слоттерном резе (стык xs[1]) ──
-if (panels.length > 1) {
-  var slotCx  = xs[1];                       // центр первого слота
-  var slotL   = slotCx - SLOT_W / 2;         // левый край реза
-  var slotR   = slotCx + SLOT_W / 2;         // правый край реза
-  var slotDimY = off*0.65                        // на линии реза слота (низ верхнего клапана)
-  var slotArr  = arrLen * 1;                 // стрелки узкого размера
-  dims += L(slotL, slotDimY, slotR, slotDimY, 'dim');                 // размерная линия на резе
-  dims += arrowTri(slotL, slotDimY, 0, slotArr);                      // стрелка внутрь (вправо)
-  dims += arrowTri(slotR, slotDimY, 180, slotArr);                    // стрелка внутрь (влево)
-  dims += dimLabel(slotR + off * 0.45, slotDimY, SLOT_W, 0);          // подпись «8» СПРАВА
-}
-}
-
-    var vb;
-    if (withDims) {
-      var extra = Math.max(totalW, totalH) * 0.14;
-      vb = fitViewBox(totalW, totalH, extra, extra, forPDF, withDims);
-    } else {
-      vb = '0 0 ' + totalW + ' ' + totalH;
-    }
-    var sizeAttr = withDims ? '' : 'width="' + totalW + 'mm" height="' + totalH + 'mm"';
-    var cls = withDims ? 'class="drawing"' : '';
-
-    var boost = forPDF ? PDF_LINE_BOOST : 1.25;
-    var cutSW = CUT_SW * boost, dimSW = DIM_SW * boost;
-    var dashArr = forPDF ? (4 * boost * 3) + ' ' + (2 * boost * 3) : (4 * 3) + ' ' + (2 * 3);
-    var vecEff = forPDF ? '' : 'vector-effect:non-scaling-stroke;';
-
-    var c02 = colors02();
-    var foldDash02 = c02.foldDash ? ('stroke-dasharray:' + dashArr + ';') : '';
-    // ЧЁРНЫЙ режим (COLOR_SWAP_02 = false): всё видно, НО у A6/C6 — только рез (биговки ccFold07 скрыты).
-    // ЦВЕТНОЙ режим (true): биговки A6/C6 (красные) показываем.
-    var ccFoldMarkup = COLOR_SWAP_02 ? ccFold07.join('') : '';
-    return '<svg xmlns="http://www.w3.org/2000/svg" ' + cls + ' viewBox="' + vb + '" ' + sizeAttr + ' preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" style="shape-rendering:geometricPrecision;">' +
-      '<style>' +
-      '.cut{stroke:' + c02.cut + ';stroke-width:' + cutSW + ';fill:none;' + vecEff + '}' +
-      '.fold{stroke:' + c02.fold + ';stroke-width:' + cutSW + ';fill:none;' + foldDash02 + vecEff + '}' +
-      '.dim{stroke:' + c02.dim + ';stroke-width:' + dimSW + ';stroke-linecap:round;' + vecEff + '}' +
-      '.dimarr-tri{fill:' + c02.dim + ';stroke:none;}' +
-      '.dimtxt{font-family:Arial,sans-serif;font-weight:bold;fill:' + c02.dim + ';}' +
-      '.dimbg{fill:#FFFFFF;stroke:none;}' +
-      '</style>' + cut.join('') + fold.join('') + ccFoldMarkup + ccLabels07.join('') + dims + corrIcon +
-      stampFrameRect(totalW, totalH, forPDF, withDims) + '</svg>';
-  }
-
+  
   // штриховка клеевого клапана (вынесена из buildSVG)
   function hatchGlue(GLUE, y1, y2, slantRise) {
     var HATCH_COUNT = 12;
@@ -2919,7 +2021,6 @@ if (panels.length > 1) {
     var n = secXs.length - 1; // число панелей
     function fl(i){ return (i === 0) ? secXs[i] : secXs[i] + SLOT_W/2; }
     function fr(i){ return (i === n-1) ? secXs[i+1] : secXs[i+1] - SLOT_W/2; }
-    
     var i, xL, xR;
     for (i = 0; i < n; i++) {
       xL = fl(i); xR = fr(i);
@@ -2937,15 +2038,7 @@ if (panels.length > 1) {
       cut.push(L(xR, y2, xR, y3, 'cut'));
     }
     for (i = 1; i < n; i++) fold.push(L(secXs[i], y1, secXs[i], y2, 'fold'));
-
-// ── ЗАМЫКАНИЕ СЛОТОВ РЕЗОМ: верхний слоттер снизу (y1), нижний сверху (y2) ──
-var HW02ap = SLOT_W / 2;
-for (i = 1; i < n; i++) {
-  var scAp = secXs[i];   // стык W↔L внутри секции = центр слота
-  cut.push(L(scAp - HW02ap, y1, scAp + HW02ap, y1, 'cut'));   // верхний слоттер
-  cut.push(L(scAp - HW02ap, y2, scAp + HW02ap, y2, 'cut'));   // нижний слоттер
-}
-}
+  }
     // Собирает текст ошибки из того, чего не хватает (конструкция / профиль / размеры).
   // Возвращает null, если всё на месте, иначе — строку для тоста.
   function missingInputMessage() {
@@ -3022,11 +2115,7 @@ for (i = 1; i < n; i++) {
     }
     if (construction === '0203') {
       var d0203 = calc0203(v.l, v.w, v.h, v.profile);
-      return buildSVG0201(d0203, withDims, forPDF);   
-    }
-    if (construction === '0711') {
-      var d0711 = calc0711(v.l, v.w, v.h, v.profile);
-      return buildSVG0711(d0711, withDims, forPDF);
+      return buildSVG0201(d0203, withDims, forPDF);   // рисуем тем же генератором, что 0201
     }
     var d = calc0201(v.l, v.w, v.h, v.profile);
     return buildSVG0201(d, withDims, forPDF);
@@ -3065,10 +2154,6 @@ function build0409(l, w, h, profile, withDims, forPDF) {
   var xs = [xStart];
   for (var p = 0; p < panels.length; p++) xs.push(xs[xs.length - 1] + panels[p]);
   var last = panels.length;
-      // ── параметры R4 клеевого клапана / R4.3 (объявлены заранее — нужны для правой вертикали) ──
-      var R4_GLUE07   = 4;   // радиус четвертинок клеевого клапана / R4.3, мм
-    var R4_GLUE_DOWN = 2;  // сдвиг НИЖНЕЙ четвертинки вниз по Y, мм
-    var R4_GLUE_UP   = 2;  // сдвиг ВЕРХНЕЙ четвертинки (R4.2) вверх по Y, мм
   var totalW = xs[last];
 
   var cut = [], fold = [];
@@ -3203,15 +2288,6 @@ dims += L(totalW, totY + extBack, totalW, totY - extGap, 'dim');   // правы
   if (withDims) {
     var pad = Math.max(totalW, totalH) * 0.10;
     var drawW = totalW + pad*2, drawH = totalH + pad*2, drawX = -pad, drawY = -pad;
-    if (stampActive(forPDF, withDims)) {
-      var _b = stampBox(totalW, totalH);
-      var _sp = Math.max(_b.fw, _b.fh) * 0.10;
-      var _fcx = _b.fx + _b.fw / 2, _fcy = _b.fy + _b.fh / 2;
-      var _halfW = Math.max(_fcx - drawX, (drawX + drawW) - _fcx, _b.fw / 2 + _sp);
-      var _halfH = Math.max(_fcy - drawY, (drawY + drawH) - _fcy, _b.fh / 2 + _sp);
-      drawX = _fcx - _halfW; drawW = _halfW * 2;
-      drawY = _fcy - _halfH; drawH = _halfH * 2;
-    }
     var boxAR = 1450 / 800;
     try {
       var pv = document.getElementById('preview');
@@ -3249,8 +2325,7 @@ dims += L(totalW, totY + extBack, totalW, totY - extGap, 'dim');   // правы
     '.dimarr-tri{fill:' + c04.dim + ';stroke:none;}' +
     '.dimtxt{font-family:Arial,sans-serif;font-weight:bold;fill:' + c04.dim + ';}' +
     '.dimbg{fill:#FFFFFF;stroke:none;}' +
-    '</style>' + cut.join('') + fold.join('') + dims +
-    stampFrameRect(totalW, totalH, forPDF, withDims) + '</svg>';
+    '</style>' + cut.join('') + fold.join('') + dims + '</svg>';
 }
 
 
@@ -3410,15 +2485,6 @@ function build0410(l, w, h, profile, withDims, forPDF) {
   if (withDims) {
     var pad = Math.max(totalW, totalH) * 0.10;
     var drawW = totalW + pad*2, drawH = totalH + pad*2, drawX = -pad, drawY = -pad;
-    if (stampActive(forPDF, withDims)) {
-      var _b = stampBox(totalW, totalH);
-      var _sp = Math.max(_b.fw, _b.fh) * 0.10;
-      var _sx = _b.fx - _sp, _sy = _b.fy - _sp;
-      var _sw = _b.fw + _sp * 2, _sh = _b.fh + _sp * 2;
-      var _minX = Math.min(drawX, _sx),          _minY = Math.min(drawY, _sy);
-      var _maxX = Math.max(drawX + drawW, _sx + _sw), _maxY = Math.max(drawY + drawH, _sy + _sh);
-      drawX = _minX; drawY = _minY; drawW = _maxX - _minX; drawH = _maxY - _minY;
-    }
     var boxAR = 1450 / 800;
     try {
       var pv = document.getElementById('preview');
@@ -3456,8 +2522,7 @@ function build0410(l, w, h, profile, withDims, forPDF) {
     '.dimarr-tri{fill:' + c04.dim + ';stroke:none;}' +
     '.dimtxt{font-family:Arial,sans-serif;font-weight:bold;fill:' + c04.dim + ';}' +
     '.dimbg{fill:#FFFFFF;stroke:none;}' +
-    '</style>' + cut.join('') + fold.join('') + dims +
-    stampFrameRect(totalW, totalH, forPDF, withDims) + '</svg>';
+    '</style>' + cut.join('') + fold.join('') + dims + '</svg>';
 }
 
 
@@ -3661,15 +2726,6 @@ function build0452(l, w, h, profile, withDims, forPDF) {
   if (withDims) {
     var pad = Math.max(totalW, totalH) * 0.10;
     var drawW = totalW + pad*2, drawH = totalH + pad*2, drawX = -pad, drawY = -pad;
-    if (stampActive(forPDF, withDims)) {
-      var _b = stampBox(totalW, totalH);
-      var _sp = Math.max(_b.fw, _b.fh) * 0.10;
-      var _sx = _b.fx - _sp, _sy = _b.fy - _sp;
-      var _sw = _b.fw + _sp * 2, _sh = _b.fh + _sp * 2;
-      var _minX = Math.min(drawX, _sx),          _minY = Math.min(drawY, _sy);
-      var _maxX = Math.max(drawX + drawW, _sx + _sw), _maxY = Math.max(drawY + drawH, _sy + _sh);
-      drawX = _minX; drawY = _minY; drawW = _maxX - _minX; drawH = _maxY - _minY;
-    }
     var boxAR = 1450 / 800;
     try {
       var pv = document.getElementById('preview');
@@ -3707,9 +2763,9 @@ function build0452(l, w, h, profile, withDims, forPDF) {
     '.dimarr-tri{fill:' + c04.dim + ';stroke:none;}' +
     '.dimtxt{font-family:Arial,sans-serif;font-weight:bold;fill:' + c04.dim + ';}' +
     '.dimbg{fill:#FFFFFF;stroke:none;}' +
-    '</style>' + cut.join('') + fold.join('') + dims +
-    stampFrameRect(totalW, totalH, forPDF, withDims) + '</svg>';
+    '</style>' + cut.join('') + fold.join('') + dims + '</svg>';
 }
+
 function build0427(l, w, h, profile, withDims, forPDF) {
   if (profile === 'E') l = l - 10;   // оффсет длины −10 только для E (ввод 150 → строим как 140)
   var c = [], f = [];
@@ -3948,15 +3004,6 @@ var XtL = XbL + TOP_SHRINK, XtR = XbR - TOP_SHRINK;
   if (withDims) {
     var pad = Math.max(totalW, totalH) * 0.10;
     var drawW = totalW + pad*2, drawH = totalH + pad*2, drawX = -pad, drawY = -pad;
-    if (stampActive(forPDF, withDims)) {
-      var _b = stampBox(totalW, totalH);
-      var _sp = Math.max(_b.fw, _b.fh) * 0.10;
-      var _sx = _b.fx - _sp, _sy = _b.fy - _sp;
-      var _sw = _b.fw + _sp * 2, _sh = _b.fh + _sp * 2;
-      var _minX = Math.min(drawX, _sx),          _minY = Math.min(drawY, _sy);
-      var _maxX = Math.max(drawX + drawW, _sx + _sw), _maxY = Math.max(drawY + drawH, _sy + _sh);
-      drawX = _minX; drawY = _minY; drawW = _maxX - _minX; drawH = _maxY - _minY;
-    }
     var boxAR = 1450 / 800;
     try {
       var pv = document.getElementById('preview');
@@ -3992,10 +3039,9 @@ var XtL = XbL + TOP_SHRINK, XtR = XbR - TOP_SHRINK;
     '.dim{stroke:'+c04.dim+';stroke-width:'+dimSW+';stroke-linecap:round;'+vecEff+'}'+
     '.dimarr-tri{fill:'+c04.dim+';stroke:none;}'+
     '.dimtxt{font-family:Arial,sans-serif;font-weight:bold;fill:'+c04.dim+';}'+
-       '.dimbg{fill:#FFFFFF;stroke:none;}'+
-    '</style>'+c.join('')+f.join('')+dims+
-    stampFrameRect(totalW, totalH, forPDF, withDims) + '</svg>';
-}
+    '.dimbg{fill:#FFFFFF;stroke:none;}'+
+    '</style>'+c.join('')+f.join('')+dims+'</svg>';
+} 
 
 function build0422(l, w, h, profile, withDims, forPDF) {
   // Оригинал 0422 — без смещений (originX/Y = 0), полностью как раньше.
@@ -4497,174 +3543,17 @@ c.push(L(s2L, yb - GUP - GRUP - D8_HLINE_Y, s1L - R4c, yb - GUP - GRUP - D8_HLIN
     '.dimarr-tri{fill:'+c04.dim+';stroke:none;}'+
     '.dimtxt{font-family:Arial,sans-serif;font-weight:bold;fill:'+c04.dim+';}'+
     '.dimbg{fill:#FFFFFF;stroke:none;}'+
-    '</style>'+c.join('')+f.join('')+dims+
-    stampFrameRect(totalW, totalH, forPDF, withDims) + '</svg>';
+    '</style>'+c.join('')+f.join('')+dims+'</svg>';
 }
 
-  // ── Прочитать выбранную раскладку "AxB": A столбцов × B рядов. null = выкл ──
-  function readLayoutGrid() {
-    var el = document.getElementById('layoutStamp');
-    if (!el || !el.value || el.value === '-') return null;
-    var m = /^(\d+)x(\d+)$/.exec(el.value);
-    if (!m) return null;
-    return { cols: parseInt(m[1], 10), rows: parseInt(m[2], 10) };
-  }
 
-  // ── Достать из SVG-строки: атрибуты <svg ...>, inner-содержимое, viewBox ──
-  function parseSVG(svgString) {
-    var tmp = document.createElement('div');
-    tmp.innerHTML = svgString;
-    var svg = tmp.querySelector('svg');
-    if (!svg) return null;
-    var vb = (svg.getAttribute('viewBox') || '').split(/\s+/).map(parseFloat);
-    return { el: svg, inner: svg.innerHTML, vb: vb };  // vb = [x,y,w,h]
-  }
 
-  function buildLayoutSVG(construction, v, withDims, forPDF) {
-    var grid = readLayoutGrid();
-    if (!grid) return null;
-
-    // Определяем, нужна ли общая рамка штампа вокруг тиража (только предпросмотр)
-    var stampEl = document.getElementById('toggleStamp');
-    var wantFrame = withDims && !forPDF && stampEl && stampEl.checked;
-
-    // Строим копии с ПОДАВЛЕННОЙ рамкой штампа (общую нарисуем сами).
-    var prevSuppress = SUPPRESS_STAMP_FRAME;
-    SUPPRESS_STAMP_FRAME = true;
-    var baseStr, cleanStr;
-    try {
-      baseStr  = buildDrawing(construction, v, withDims, forPDF);   // база (с размерами при предпросмотре)
-      cleanStr = buildDrawing(construction, v, false, forPDF);      // чистая копия (без размеров) → viewBox="0 0 cw ch"
-    } finally {
-      SUPPRESS_STAMP_FRAME = prevSuppress;
-    }
-    if (!baseStr) return null;
-
-    var base = parseSVG(baseStr);
-    if (!base || base.vb.length < 4) return baseStr;
-    var clean = parseSVG(cleanStr);
-    if (!clean || clean.vb.length < 4) return baseStr;
-
-    var cw = clean.vb[2], ch = clean.vb[3];   // чистый габарит чертежа (totalW × totalH)
-
-    var cleanBody = clean.inner.replace(/<style[\s\S]*?<\/style>/i, '');
-    var baseBody  = base.inner.replace(/<style[\s\S]*?<\/style>/i, '');
-
-    // Сетка копий (базовая с размерами — в (0,0))
-    var cells = '';
-    for (var r = 0; r < grid.rows; r++) {
-      for (var c = 0; c < grid.cols; c++) {
-        if (r === 0 && c === 0) {
-          cells += '<g>' + baseBody + '</g>';
-        } else {
-          var tx = c * cw, ty = r * ch;
-          cells += '<g transform="translate(' + tx.toFixed(3) + ',' + ty.toFixed(3) + ')">' +
-                   cleanBody + '</g>';
-        }
-      }
-    }
-
-    // Габарит всего тиража (тела без размеров)
-    var gridW = grid.cols * cw, gridH = grid.rows * ch;
-
-    // ── Общая РАМКА штампа вокруг всего тиража ──
-    var frameMarkup = '';
-    var fx = 0, fy = 0, fw = gridW, fh = gridH;   // область, вокруг которой считаем viewBox
-    if (wantFrame) {
-      var b = stampBox(gridW, gridH);   // +20 или минимум 500×600, центр по тиражу
-      fx = b.fx; fy = b.fy; fw = b.fw; fh = b.fh;
-      // Толщина рамки — ФИКС в экранных px (non-scaling-stroke → не зависит от масштаба viewBox)
-      var sw = 1.5;
-      var frameCol = stampFrameColor();
-      frameMarkup =
-        '<rect data-stampframe="1" x="' + fx.toFixed(3) + '" y="' + fy.toFixed(3) +
-        '" width="' + fw.toFixed(3) + '" height="' + fh.toFixed(3) +
-        '" fill="none" stroke="' + frameCol + '" stroke-width="' + sw.toFixed(3) +
-        '" vector-effect="non-scaling-stroke" />';
-      // подписи размеров рамки (сверху ширина, слева высота)
-      var fsz = Math.max(fw, fh) * 0.024;
-      var off = Math.max(fw, fh) * 0.028;
-      frameMarkup +=
-        '<text x="' + (fx + fw / 2).toFixed(3) + '" y="' + (fy - off).toFixed(3) +
-        '" text-anchor="middle" dominant-baseline="central" ' +
-        'style="font-family:Arial,sans-serif;font-weight:bold;font-size:' + fsz.toFixed(3) +
-        'px;fill:' + frameCol + ';">' + Math.round(fw) + '</text>';
-      frameMarkup +=
-        '<g transform="rotate(-90 ' + (fx - off).toFixed(3) + ' ' + (fy + fh / 2).toFixed(3) + ')">' +
-        '<text x="' + (fx - off).toFixed(3) + '" y="' + (fy + fh / 2).toFixed(3) +
-        '" text-anchor="middle" dominant-baseline="central" ' +
-        'style="font-family:Arial,sans-serif;font-weight:bold;font-size:' + fsz.toFixed(3) +
-        'px;fill:' + frameCol + ';">' + Math.round(fh) + '</text></g>';
-    }
-
-        // ── Общий viewBox: ЦЕНТРИРУЕТСЯ СТРОГО по рамке штампа (или по тиражу, если рамки нет).
-    //    Размерные линии первой копии могут торчать за рамку — учитываем их по РАЗМЕРУ,
-    //    но расширяем область СИММЕТРИЧНО относительно центра рамки, чтобы рамка
-    //    осталась в центре и по горизонтали, и по вертикали. ──
-    var drawX, drawY, drawW, drawH;
-    if (wantFrame) {
-      var fcx = fx + fw / 2, fcy = fy + fh / 2;   // центр рамки штампа
-      var sp = Math.max(fw, fh) * 0.06;           // запас под подписи/зазор рамки
-      // максимальный вылет от центра рамки среди: рамки+запас, тиража, размерных линий базовой копии
-      var halfW = Math.max(
-        fw / 2 + sp,
-        fcx - 0, gridW - fcx,
-        fcx - base.vb[0], (base.vb[0] + base.vb[2]) - fcx
-      );
-      var halfH = Math.max(
-        fh / 2 + sp,
-        fcy - 0, gridH - fcy,
-        fcy - base.vb[1], (base.vb[1] + base.vb[3]) - fcy
-      );
-      drawX = fcx - halfW; drawW = halfW * 2;
-      drawY = fcy - halfH; drawH = halfH * 2;
-    } else {
-      // без рамки — центрируем по центру тиража
-      var gcx = gridW / 2, gcy = gridH / 2;
-      var hW = Math.max(gcx - 0, gridW - gcx, gcx - base.vb[0], (base.vb[0] + base.vb[2]) - gcx);
-      var hH = Math.max(gcy - 0, gridH - gcy, gcy - base.vb[1], (base.vb[1] + base.vb[3]) - gcy);
-      drawX = gcx - hW; drawW = hW * 2;
-      drawY = gcy - hH; drawH = hH * 2;
-    }
-
-    // подгон под пропорции окна #preview (как в fitViewBox)
-    var boxAR = 1450 / 800;
-    try {
-      var pv = document.getElementById('preview');
-      if (pv) {
-        var cs = getComputedStyle(pv);
-        var pX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
-        var pY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
-        var iW = pv.clientWidth - pX, iH = pv.clientHeight - pY;
-        if (iW > 0 && iH > 0) boxAR = iW / iH;
-      }
-    } catch (e) {}
-    var drawAR = drawW / drawH;
-    if (drawAR < boxAR) { var nW = drawH * boxAR; drawX -= (nW - drawW) / 2; drawW = nW; }
-    else { var nH = drawW / boxAR; drawY -= (nH - drawH) / 2; drawH = nH; }
-
-    var vbAll = drawX + ' ' + drawY + ' ' + drawW + ' ' + drawH;
-
-    var styleMatch = base.inner.match(/<style[\s\S]*?<\/style>/i);
-    var styleBlock = styleMatch ? styleMatch[0] : '';
-
-    var cls = base.el.getAttribute('class') ? ('class="' + base.el.getAttribute('class') + '"') : '';
-
-    // рамку рисуем ПОВЕРХ копий (после cells)
-    return '<svg xmlns="http://www.w3.org/2000/svg" ' + cls + ' viewBox="' + vbAll + '" ' +
-      'preserveAspectRatio="xMidYMid meet" shape-rendering="geometricPrecision" ' +
-      'style="shape-rendering:geometricPrecision;">' +
-      styleBlock + cells + frameMarkup + '</svg>';
-  }
-
-  function previewBox() {
+function previewBox() {
     if (!ensureReadyToDraw()) return;
     var v = readBC(); if (!v) return;
-    // если выбрана раскладка "Уложить на штамп" — тиражируем; иначе одиночный чертёж
-    var svg = buildLayoutSVG(calcSel.value, v, true, false) || buildDrawing(calcSel.value, v, true, false);
+    var svg = buildDrawing(calcSel.value, v, true, false);
     if (!svg) return;
     document.getElementById('preview').innerHTML = svg;
-    if (typeof syncFaceLabel === 'function') syncFaceLabel();   // «Лицо печати» поверх свежего SVG (только 0711)
     // показать кнопку цвета линий (появляется после первого удачного предпросмотра)
     var csBtn = document.getElementById('btnColorSwap');
     if (csBtn) { csBtn.style.display = ''; if (window._syncColorBtn) window._syncColorBtn(); }
@@ -4835,7 +3724,7 @@ var calcSel = document.getElementById('bcConstruction');   // ← объявля
   if (!btn) return;
 
   function group(c) {
-    if (c === '0200' || c === '0201' || c === '0203' || c === '0711') return '02';
+    if (c === '0200' || c === '0201' || c === '0203') return '02';
     if (c === '0409' || c === '0410' || c === '0422' || c === '0427' || c === '0452') return '04';
     return null;
   }
@@ -5253,29 +4142,6 @@ function syncPreviewHint() {
   hint.style.display = previewIsEmpty() ? '' : 'none';
 }
 
-// «Лицо печати» — виден ТОЛЬКО когда в #preview есть построенный SVG-чертёж
-// (не в режиме вставки картинки, не при пустом поле). В вектор/PDF не попадает.
-function syncFaceLabel() {
-  var pv = document.getElementById('preview');
-  if (!pv) return;
-  var el = document.getElementById('faceLabel');
-  if (!el || el.parentNode !== pv) {   // #preview.innerHTML = svg затирает надпись → пересоздаём
-    el = document.createElement('div');
-    el.id = 'faceLabel';
-    el.textContent = 'ЛИЦО ПЕЧАТИ!';
-    // инлайн-стили: не зависим от CSS-блока; правый верхний угол ПОЛЯ #preview
-    el.style.cssText =
-      'position:absolute;top:16px;right:18px;z-index:9000;' +
-      "font-family:'TT Hoves',Arial,sans-serif;font-weight:normal;font-size:18px;" +
-      'color:#000;pointer-events:none;-webkit-user-select:none;user-select:none;white-space:nowrap;';
-    pv.appendChild(el);
-  }
-  var cs = document.getElementById('bcConstruction');
-  var is0711 = cs && cs.value === '0711';
-  var hasSvg = !PASTED_MODE && !!pv.querySelector('svg');
-  el.style.display = (hasSvg && is0711) ? 'block' : 'none';
-}
-
 // Показ/скрытие кнопок поворота: только в режиме вставки
 function syncRotateBtns() {
   var box = document.getElementById('rotateBtns');
@@ -5303,13 +4169,13 @@ function applyPastedRotation() {
     applyPastedRotation();
     syncPreviewHint();
     syncRotateBtns();
-    syncFaceLabel();
   };
   var _origExit = exitPastedMode;
   exitPastedMode = function () {
     PASTED_ROT = 0;
     _origExit();
-    setTimeout(function () { syncPreviewHint(); syncRotateBtns(); syncFaceLabel(); }, 0);
+    // exitPastedMode вызывается ПЕРЕД/вместе с очисткой #preview — обновим UI на след. тик
+    setTimeout(function () { syncPreviewHint(); syncRotateBtns(); }, 0);
   };
 })();
 
@@ -5331,14 +4197,13 @@ function applyPastedRotation() {
 ['btnPreview', 'btnClear'].forEach(function (id) {
   var b = document.getElementById(id);
   if (b) b.addEventListener('click', function () {
-    setTimeout(function () { syncPreviewHint(); syncRotateBtns(); syncFaceLabel(); }, 0);
+    setTimeout(function () { syncPreviewHint(); syncRotateBtns(); }, 0);
   });
 });
 
 // стартовое состояние (при загрузке #preview пуст → плейсхолдер виден)
 syncPreviewHint();
 syncRotateBtns();
-syncFaceLabel();
 
 // «Карта изделия»: только цифры, максимум 6 символов (формат 000000)
 (function () {
@@ -5451,7 +4316,7 @@ syncFaceLabel();
   var _mkInit = document.getElementById('bcMark'); if (_mkInit) _mkInit.selectedIndex = -1;   // плейсхолдер "-"
   var _cmpInit = document.getElementById('bcComposition'); if (_cmpInit) _cmpInit.selectedIndex = -1;   // плейсхолдер "-"
   
-  var PREVIEW_READY = ['0200', '0201', '0203', '0427', '0422', '0409', '0410', '0452', '0711'];
+  var PREVIEW_READY = ['0200', '0201', '0203', '0427', '0422', '0409', '0410', '0452'];
     // Кнопки больше НЕ дизейблим — при нехватке данных показываем тост в обработчике.
     function updatePreviewButtons() {
       ['btnPreview','btnDownload','btnPDF','btnAgree'].forEach(function (id) {
@@ -5781,39 +4646,24 @@ else {
 
     resL.value = Math.round(devL);
     resW.value = Math.round(devW);
-        // ═══════════════════════════════════════════════════════════════
-    // ПАЛЛЕТ СЧИТАЕТСЯ ЗДЕСЬ И ТОЛЬКО ЗДЕСЬ — по исходным габаритам чертежа.
-    // Ниже devL/devW не модифицируются (штамп меняет только dispL/dispW).
-    // Копируем в примитивы, чтобы исключить любое влияние последующего кода.
-    // ═══════════════════════════════════════════════════════════════
-    var PAL_DEV_L = Number(devL);   
-    var PAL_DEV_W = Number(devW);   
 
         // клеевой клапан текущего профиля для расчёта «следа»
-                                // клапан для расчёта СЛЕДА на поддон (0201 = клеевой клапан полного короба)
-                                var PALLET_GLUE = { 'E': 30, 'B': 30, 'C': 35, 'BC': 45, 'EB': 40 };
+                // клапан для расчёта СЛЕДА на поддон (0201 = клеевой клапан полного короба)
+                var PALLET_GLUE = { 'E': 30, 'B': 30, 'C': 35, 'BC': 45, 'EB': 40 };
         var glueForPallet = PALLET_GLUE[profile] != null ? PALLET_GLUE[profile] : 30;
-        // Паллет — СТРОГО по зафиксированным габаритам чертежа (PAL_DEV_L/W),
-        // объявленным сразу после resL/resW. Штамп на них не влияет.
-        var palletData = calcPallet(PAL_DEV_L, PAL_DEV_W, profile, glueForPallet, construction);
+    // Поддон считается ВСЕГДА по исходным devL/devW (штамп на него не влияет)
+    var palletData = calcPallet(devL, devW, profile, glueForPallet, construction);
 
-// ⚠️ «Заготовка на штамп» (+20) влияет ТОЛЬКО на ЧЕРТЁЖ (см. stampBox/stampFrameRect).
-//    НО: если штамп ВКЛ и заготовка меньше листа 500×600 — во вкладке «Заготовка»
-//    показываем размеры листа (500×600 по ориентации) и S считаем по нему.
-//    ⚠️ Паллет считается ОТДЕЛЬНО выше — строго по исходным devL/devW.
-var dispW = devW, dispL = devL;
-var stampOn2 = document.getElementById('toggleStamp');
-if (stampOn2 && stampOn2.checked) {
-  var STAMP_LONG = 600, STAMP_SHORT = 500;
-  if (devL >= devW) {                 // длинная сторона = devL
-    if (devL < STAMP_LONG)  dispL = STAMP_LONG;
-    if (devW < STAMP_SHORT) dispW = STAMP_SHORT;
-  } else {                            // длинная сторона = devW
-    if (devW < STAMP_LONG)  dispW = STAMP_LONG;
-    if (devL < STAMP_SHORT) dispL = STAMP_SHORT;
-  }
-}
-var sZag = (dispL * dispW) / 1000000;   // площадь по отображаемым размерам заготовки
+    // Заготовка на штамп: +20 к длине и ширине (влияет на отображение и S заг)
+    var stampOn = document.getElementById('toggleStamp');
+    var dispL = devL, dispW = devW;
+    if (stampOn && stampOn.checked) {
+      dispL = devL + 20;
+      dispW = devW + 20;
+    }
+
+    // Площадь заготовки в м^2 (с учётом штампа)
+    var sZag = (dispL * dispW) / 1000000;
 
     var sBox;
 if (construction === '0200' || construction === '0201' || construction === '0203') {
@@ -5833,15 +4683,13 @@ if (construction === '0200' || construction === '0201' || construction === '0203
 }
 var coef = sZag > 0 ? (sBox / sZag) : 0;
 
-var data = {
-      devL: Math.round(dispL),   // «Заготовка Д» = отображаемая (при штампе 600/500)
-      devW: Math.round(dispW),   // «Заготовка Ш» = отображаемая
-      palDevL: Math.round(PAL_DEV_L),   // ИСХОДНАЯ длина заготовки (чертёж) — для поддона/формул
-      palDevW: Math.round(PAL_DEV_W),   // ИСХОДНАЯ ширина заготовки (чертёж) — для поддона/формул
+    var data = {
+      devL: Math.round(dispL),
+      devW: Math.round(dispW),
       sZag: sZag,
-      coef: coef,
+      coef: coef,   // выводится всегда
       profile: profile,
-      pallet: palletData         // паллет — строго по PAL_DEV_L/W
+      pallet: palletData
     };
 
     renderResults(data);
@@ -5857,22 +4705,7 @@ document.getElementById('palType').addEventListener('change', function () {
 });
 // тоглы «штамп» и «коэф. выхода» — пересчёт сразу при переключении
 document.getElementById('toggleStamp').addEventListener('change', function () {
-    // если включаем штамп — выключаем «две половины»
-    if (this.checked) {
-    var th = document.getElementById('toggleTwoHalves');
-    if (th && th.checked) { th.checked = false; FORCE_TWO_HALVES = false; }
-  }
-  // на 0201 «Заготовка на штамп» ВКЛ → авто-включаем «Чертеж на штамп»
-  if (this.checked && calcSel.value === '0201') {
-    var ds = document.getElementById('toggleDrawStamp');
-    if (ds && !ds.checked) ds.checked = true;
-    if (this.checked) {
-              var th = document.getElementById('toggleTwoHalves');
-              if (th && th.checked) { th.checked = false; FORCE_TWO_HALVES = false; }
-            }
-  }
   if (document.getElementById('resL').value) calcDevelopment();
-  if (!PASTED_MODE && document.getElementById('preview').querySelector('svg')) previewBox();
 });
 // (тогл «Коэф. выхода» удалён — коэффициент считается всегда)
 // тогл «Включить расчеты» — только РАЗРЕШАЕТ показ. Появление — по «Предпросмотр».
@@ -5933,16 +4766,13 @@ function calcPallet(devL, devW, profile, glue, construction) {
     var perStack = parseFloat(document.getElementById('palPerStack').value);
 
 // ── ВЫБРАННЫЙ поддон (из поля), а не перебор ──
-var sel = document.getElementById('palType').value;   // напр. "800x1200"
+var sel = document.getElementById('palType').value;   // "800x1200" | "1000x1200"
 var selParts = sel.split('x');
 var PALLETS = [
   { w: parseFloat(selParts[0]), l: parseFloat(selParts[1]) }
 ];
-// Допуск свисания: 150 мм только для 800x1200 и 1000x1200; для остальных — 300 мм.
-var STD_150 = { '800x1200': true, '1000x1200': true };
-var palTol = STD_150[sel] ? 150 : 300;
-var TOL_W = palTol;   // допуск по ширине, мм (максимум)
-var TOL_L = palTol;   // допуск по длине, мм (максимум)
+var TOL_W = 150;   // допуск по ширине, мм (максимум)
+var TOL_L = 150;   // допуск по длине, мм (максимум)
 
         // ── разрешённые раскладки ──
         var LAYOUTS = [
@@ -6152,32 +4982,28 @@ html += '</div>'; // /res-block паллет
     var GLUE_MAP = { 'E':30,'B':30,'C':35,'BC':45,'EB':40 };
     var glue = GLUE_MAP[profile] != null ? GLUE_MAP[profile] : 30;
 
-        // Для расчёта следа на поддон берём ИСХОДНУЮ развёртку (чертёж), а НЕ штампованную.
-    // Штамп +20 / snap до 500×600 на поддон НЕ влияет.
-    var palL = (data.palDevL != null) ? data.palDevL : data.devL;
-    var palW = (data.palDevW != null) ? data.palDevW : data.devW;
     var lSled, wSled;
     if (showGlue) {
-      lSled = Math.round((palL - glue) / 2);   // (706 − 30)/2 = 338
-      wSled = palW;                            // = 228 (НЕ 500)
+      lSled = Math.round((data.devL - glue) / 2);   // делим (4 клапана)
+      wSled = data.devW;
     } else {
-      lSled = palL;
-      wSled = palW;
+      lSled = data.devL;                             // lзаг = lслед
+      wSled = data.devW;
     }
 
     var html = '';
 
     // ── Шаг 1. След короба ──
-    html += row('Заготовка (Ш×Д), мм', palW + ' × ' + palL);
+    html += row('Заготовка (Ш×Д), мм', data.devW + ' × ' + data.devL);
     if (showGlue) {
-      html += f('l слож. г/к = (lзаг − клапан) / 2');
-      html += f('w слож. г/к = wзаг');
+      html += f('l слож. г/к = (Дзаг − клапан) / 2');
+      html += f('w слож. г/к = Шзаг');
       html += sub('Клапан профиля ' + profile + ' = ' + glue + ' мм');
     } else {
-      html += f('l слож. г/к = lзаг');
-      html += f('w слож. г/к = wзаг');
+      html += f('l слож. г/к = Дзаг');
+      html += f('w слож. г/к = Шзаг');
     }
-    html += row('Слож. г/к, мм', lSled + ' × ' + wSled);
+    html += row('Слож. г/к (Ш×Д), мм', lSled + ' × ' + wSled);
     html += SEP;
 
     if (p.fits === false) {
@@ -6189,10 +5015,9 @@ html += '</div>'; // /res-block паллет
     // ── Шаг 2. Раскладка на поддоне ──
     var palBase = p.palletBase || document.getElementById('palType').value || '—';
     html += row('Поддон, мм', palBase);
-    var palTolInfo = ({ '800x1200': 150, '1000x1200': 150 })[document.getElementById('palType').value] || 300;
     html += f('Габарит Ш = n × развертка/w слож.');
     html += f('Габарит Д = n × развертка/l.слож.');
-    html += sub('Скрипт перебирает n × n  раскладки и обе ориентации развертки/сложенный ЧКП, выбирая плотнейшую в пределах поддона w/l+ ' + palTolInfo + ' мм.');
+    html += sub('Скрипт перебирает n × n  раскладки и обе ориентации развертки/сложенный ЧКП, выбирая плотнейшую в пределах поддона w/l+ 150 мм.');
     html += row('Раскладка (Ш × Д)', p.layout);
     html += row('Кол-во в ряду', p.perLayer);
     html += SEP;
@@ -6509,15 +5334,6 @@ if (open) {
           advCorner.addEventListener('click', toggleAdv);
         }
 
-              // хелпер: активен ли какой-либо режим штампа/раскладки
-              function stampOrLayoutActive() {
-          var st = document.getElementById('toggleStamp');
-          var ds = document.getElementById('toggleDrawStamp');
-          var ls = document.getElementById('layoutStamp');
-          var layoutOn = ls && /^(\d+)x(\d+)$/.test(ls.value);
-          return !!((st && st.checked) || (ds && ds.checked) || layoutOn);
-        }
-
         if (halvesToggle) halvesToggle.addEventListener('change', function () {
   var okConstr = TWO_HALVES_CONSTR.indexOf(calcSel.value) !== -1;
   // 0200 из двух половин пока не поддержан
@@ -6529,13 +5345,6 @@ if (open) {
   }
   if (halvesToggle.checked && !okConstr) {
     showError('«Строить из 2-х половин» доступно только для 0200 / 0201 / 0203');
-    halvesToggle.checked = false;
-    FORCE_TWO_HALVES = false;
-    return;
-  }
-  // штамп / чертёж на штамп / раскладка → две половины недоступны
-  if (halvesToggle.checked && stampOrLayoutActive()) {
-    showError('«Строить из 2-х половин» недоступно');
     halvesToggle.checked = false;
     FORCE_TWO_HALVES = false;
     return;
@@ -6581,52 +5390,18 @@ if (open) {
                 var layoutStampEl = document.getElementById('layoutStamp');
         var drawStampEl   = document.getElementById('toggleDrawStamp');
         if (layoutStampEl) {
-          // при смене раскладки — авто-включаем «Заготовка на штамп» и перерисовываем
-          layoutStampEl.addEventListener('change', function () {
-            if (PASTED_MODE) return;
-            var grid = /^(\d+)x(\d+)$/.test(this.value);   // выбрана реальная раскладка (не "-")
-            var stampEl = document.getElementById('toggleStamp');
-            if (grid && stampEl && !stampEl.checked) {
-              stampEl.checked = true;   // раскладка требует рамку штампа
-            }
-            if (grid) {
-              var th = document.getElementById('toggleTwoHalves');
-              if (th && th.checked) { th.checked = false; FORCE_TWO_HALVES = false; }
-            }
-            // на 0201 раскладка → авто-включаем «Чертеж на штамп»
-            if (grid && calcSel.value === '0201') {
-              var ds = document.getElementById('toggleDrawStamp');
-              if (ds && !ds.checked) ds.checked = true;
-            }
-            if (document.getElementById('preview').querySelector('svg')) previewBox();
-            if (document.getElementById('resL').value) calcDevelopment();
-          });
+          // авто-включение «Чертеж на штамп» отключено — тогл временно недоступен
+          layoutStampEl.addEventListener('change', function () { /* нет действий */ });
         }
-                           // «Чертеж на штамп» — только для 0201: R4 на слоттерах + разрыв биговок.
-                           if (drawStampEl) {
+        // «Чертеж на штамп» — ВРЕМЕННО НЕДОСТУПНО: не включается, показывает ошибку
+        if (drawStampEl) {
           drawStampEl.addEventListener('change', function () {
-            if (this.checked && calcSel.value !== '0201') {
-              showError('«Чертеж на штамп» доступно только для 0201');
+            if (this.checked) {
+              showError('Временно недоступно');
               this.checked = false;
-              return;
             }
-            // «две половины» ВКЛ → «Чертеж на штамп» недоступен (ошибка + откат)
-            var th = document.getElementById('toggleTwoHalves');
-            if (this.checked && th && th.checked) {
-              showError('«Чертеж на штамп» недоступно при построении из 2-х половин');
-              this.checked = false;
-              return;
-            }
-            if (PASTED_MODE) return;
-            if (document.getElementById('preview').querySelector('svg')) previewBox();
           });
         }
-        // ушли с 0201 → выключаем «Чертеж на штамп»
-        calcSel.addEventListener('change', function () {
-          if (calcSel.value !== '0201' && drawStampEl && drawStampEl.checked) {
-            drawStampEl.checked = false;
-          }
-        });
 
                 // при смене конструкции — пересчитать видимость строки половинок
                 calcSel.addEventListener('change', updateTwoHalvesRow);
