@@ -1280,7 +1280,7 @@ function stampActive(forPDF, withDims) {
   var PROFILES = {
     'B':  { glue: 30, wallH: function (l,w,h){return h+3;}, flapH: function (l,w,h){return roundFlap((w+4)/2);}, panels: function (l,w,h){return [w+2,l+3,w+3,l+2];} },
     'E':  { glue: 30, wallH: function (l,w,h){return h+2;}, flapH: function (l,w,h){return roundFlap((w+2)/2);}, panels: function (l,w,h){return [w+1,l+2,w+2,l+1];} },
-    'C':  { glue: 35, wallH: function (l,w,h){return h+4;}, flapH: function (l,w,h){return roundFlap((w+5)/2);}, panels: function (l,w,h){return [w+2,l+4,w+4,l+2];} },
+    'C':  { glue: 35, wallH: function (l,w,h){return h+5;}, flapH: function (l,w,h){return roundFlap((w+5)/2);}, panels: function (l,w,h){return [w+2,l+4,w+4,l+2];} },
     'BC': { glue: 45, wallH: function (l,w,h){return h+9;}, flapH: function (l,w,h){return roundFlap((w+12)/2);}, panels: function (l,w,h){return [w+4,l+6,w+6,l+4];} },
     'EB': { glue: 40, wallH: function (l,w,h){return h+7;}, flapH: function (l,w,h){return roundFlap((w+7)/2);}, panels: function (l,w,h){return [w+3,l+5,w+5,l+3];} }
   };
